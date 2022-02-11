@@ -146,7 +146,7 @@ const char *const tcolorname[] = {
                       log((double)(cfractalc.bailout / (szmag))) /             \
                           log((double)((zre) / (szmag))) * 256));              \
         if (cfractalc.coloringmode == OutColormodeClass::ColOut_smooth_log) { \
-           iter = log(iter) * ((cpalette.size - 1))/log(cfractalc.maxiter * 256) + 1;  \
+           iter = log(iter) * ((cpalette.size*256 - 1))/log(cfractalc.maxiter * 256) + 1;  \
         }\
         iter %= ((unsigned int)(cpalette.size - 1)) << 8;                      \
                                                                                \

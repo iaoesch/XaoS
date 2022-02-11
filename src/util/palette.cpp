@@ -659,6 +659,27 @@ static inline void hsv_to_rgb(int h, int s, int v, unsigned char *red,
     }
 }
 
+static void sinoid_segments4(int whitemode, int nsegments, int Frequency)
+{
+    int i = 0;
+    double F = (double)Frequency/(double)nsegments;
+    if (F < 1.0/(double)nsegments) {
+       F = 1.0/(double)nsegments;
+    }
+
+
+    for (i = 0; i < nsegments; i++) {
+
+            colors[i][0] = (unsigned char) (255.0/2.0 * (1.0+cos(1.0*2.0*3.14159/3.0 + i*2.0*3.14159*F)));
+            colors[i][1] = (unsigned char) (255.0/2.0 * (1.0+cos(2.0*2.0*3.14159/3.0 + i*2.0*3.14159*F)));
+            colors[i][2] = (unsigned char) (255.0/2.0 * (1.0+cos(i*2.0*3.14159*F)));
+    }
+    colors[i - 1][0] = colors[0][0]=0;
+    colors[i - 1][1] = colors[0][1]=0;
+    colors[i - 1][2] = colors[0][2]=0;
+}
+
+
 static void randomize_segments3(int /*whitemode*/, int nsegments)
 {
     int i = 0;
@@ -748,7 +769,7 @@ static void randomize_segments(int whitemode, int nsegments)
  *for slightly different sizes
  */
 
-int mkpalette(struct palette *c, int seed, int algorithm)
+int mkpalette(struct palette *c, int input_seed, int algorithm)
 {
     int i, ncolors = c->size;
     int whitemode;
@@ -759,8 +780,8 @@ int mkpalette(struct palette *c, int seed, int algorithm)
 
     if (c->flags & DONOTCHANGE)
         return 0;
-    XaoS_srandom(seed);
-    seed = (int)XaoS_random();
+    XaoS_srandom(input_seed);
+    int seed = (int)XaoS_random();
     whitemode = (int)XaoS_random() % 2;
 
     if ((c->flags & UNKNOWNENTRIES) || !c->size) {
@@ -802,6 +823,9 @@ int mkpalette(struct palette *c, int seed, int algorithm)
     XaoS_srandom(seed);
 
     switch (algorithm) {
+        case 3:
+           sinoid_segments4(whitemode, i1, input_seed);
+           break;
         case 2:
             randomize_segments3(whitemode, i1);
             break;

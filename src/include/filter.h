@@ -157,7 +157,7 @@ struct image {
 #define ALLOCEDIMAGE 1 /*used by inherimage mechanizm */
 #define SHAREDDATA 2
 
-#define PALGORITHMS 3
+#define PALGORITHMS 4
 #include "pixel_t.h"
 #define imgetpixel(image, x, y)                                                \
     ((image)->bytesperpixel == 1                                               \
