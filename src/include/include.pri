@@ -8,6 +8,7 @@ HEADERS += \
     $$PWD/catalog.h \
     $$PWD/filter.h \
     $$PWD/formulas.h \
+    $$PWD/formulas_original.h \
     $$PWD/fractal.h \
     $$PWD/generic.h \
     $$PWD/grlib.h \

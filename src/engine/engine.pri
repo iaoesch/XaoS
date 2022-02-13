@@ -1,6 +1,7 @@
 SOURCES += \
     $$PWD/filter.cpp \
     $$PWD/formulas.cpp \
+    $$PWD/formulas_original.cpp \
     $$PWD/fractal.cpp \
     $$PWD/btrace.cpp \
     $$PWD/palettef.cpp \
@@ -25,6 +26,7 @@ HEADERS += \
     $$PWD/btraced.h \
     $$PWD/calculate.h \
     $$PWD/docalc.h \
+    $$PWD/docalc_original.h \
     $$PWD/edge2d.h \
     $$PWD/edged.h \
     $$PWD/julia.h \
