@@ -54,7 +54,7 @@
 #include "sffe.h"
 #endif
 
-const char *const incolorname[] = {"0",
+const char *const original_incolorname[] = {"0",
                                    "zmag",
                                    "Decomposition-like",
                                    "real/imag",
@@ -67,7 +67,7 @@ const char *const incolorname[] = {"0",
                                    "True-color",
                                    NULL};
 
-const char *const outcolorname[] = {"iter",
+const char *const original_outcolorname[] = {"iter",
                                     "iter+real",
                                     "iter+imag",
                                     "iter+real/imag",
@@ -80,7 +80,7 @@ const char *const outcolorname[] = {"iter",
                                     "True-color",
                                     NULL};
 
-const char *const tcolorname[] = {
+const char *const original_tcolorname[] = {
     "black",
     "re*im sin(re^2) angle",
     "sin(re) sin(im) sin(square)",
@@ -595,7 +595,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define PRETEST 0
 #define FORMULA                                                                \
@@ -613,7 +613,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand3_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define UNCOMPRESS
 #define VARIABLES number_t br, tmp;
@@ -652,7 +652,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA magnet_julia
 #define RANGE 4
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define UNCOMPRESS
 #define VARIABLES number_t inre, inim, tmp1, tmp2, dnre, nmre, dnim;
@@ -703,7 +703,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA magnet2_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define BTEST less_than_4(rp + ip)
 #define FORMULA                                                                \
@@ -720,7 +720,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand4_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -739,7 +739,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand5_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -758,7 +758,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand6_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -777,7 +777,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand9_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -793,7 +793,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI trice_peri
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t zor, zoi;
 /* For some reason Cat's Eye renders as an empty circle unless the bailout
@@ -818,7 +818,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI catseye_peri
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -835,7 +835,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mbar_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -859,7 +859,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI mlambda_peri
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t zre1, zim1, zre2, zim2;
 #define INIT                                                                   \
@@ -880,7 +880,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC manowar_calc
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t zre1, zim1;
 #define INIT                                                                   \
@@ -899,7 +899,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC spider_calc
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -925,7 +925,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC sier_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -951,7 +951,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC goldsier_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT
@@ -981,7 +981,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC circle7_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT
@@ -1004,7 +1004,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA symbarn_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -1040,7 +1040,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
         zim = zim - pim;
 #define CALC carpet_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST                                                                  \
@@ -1078,7 +1078,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC koch_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t zre1, zim1;
 #define INIT                                                                   \
@@ -1095,7 +1095,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim = zim1;
 #define CALC hornflake_calc
 #define RANGE 2
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1114,7 +1114,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley1_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1133,7 +1133,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley2_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1153,7 +1153,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley3_julia
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t n, sqrr, sqri, zre1, zim1;
 #define INIT                                                                   \
@@ -1174,7 +1174,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim1 -= zim;                                                               \
     n = zre1 * zre1 + zim1 * zim1;
 #define CALC newton_calc
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t n, sqrr, sqri, zre1, zim1;
 #define INIT                                                                   \
@@ -1194,7 +1194,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim1 -= zim;                                                               \
     n = zre1 * zre1 + zim1 * zim1;
 #define CALC newton4_calc
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t zpr, zip;
 #define SAVEVARIABLES number_t szpr, szip;
@@ -1215,7 +1215,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC phoenix_calc
 #define PERI phoenix_peri
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t tr, ti, zpr, zpm, rp1, ip1;
 #define INIT                                                                   \
@@ -1234,7 +1234,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define SMOOTH
 #define CUSTOMSAVEZMAG szmag = zpr * zpr + zpm * zpm
 #define PRESMOOTH zre = zpr * zpr + zpm * zpm
-#include "docalc.h"
+#include "docalc_original.h"
 
 #define VARIABLES number_t yre, yim, re1tmp, re2tmp, im1tmp;
 #define BTEST (rp + ip < 9 || (yre * yre + yim * yim) < 4 * (rp + ip))
@@ -1255,76 +1255,76 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI beryl_peri
 #define RANGE 2
 #define RPIP
-#include "docalc.h"
+#include "docalc_original.h"
 
 #ifdef USE_SFFE
 
 // Parser is not thread safe so each thread needs its own instance
-thread_local bool sffe_formula_valid = false;
-thread_local sffe *sffe_formula_local = NULL;
-thread_local bool sffe_initial_valid = false;
-thread_local sffe *sffe_initial_local = NULL;
-thread_local cmplx sffe_z, sffe_c, sffe_p, sffe_n;
+thread_local bool sffe_formula_original_valid = false;
+thread_local sffe *sffe_formula_original_local = NULL;
+thread_local bool sffe_initial_original_valid = false;
+thread_local sffe *sffe_initial_original_local = NULL;
+thread_local cmplx sffe_z_original, sffe_c_original, sffe_p_original, sffe_n_original;
 
 // Copy the formula from the main parser to this thread's local parser
 // Possibly initializing the parser if this is the first time
-void sffe_setmine(void *data, struct taskinfo * /*task*/, int /*r1*/,
+void sffe_setmine_original(void *data, struct taskinfo * /*task*/, int /*r1*/,
                   int /*r2*/)
 {
     fractal_context *c = (fractal_context *)data;
-    if (!sffe_formula_local) {
-        sffe_formula_local = sffe_alloc();
-        sffe_regvar(&sffe_formula_local, &sffe_p, "p");
-        sffe_regvar(&sffe_formula_local, &sffe_z, "z");
-        sffe_regvar(&sffe_formula_local, &sffe_c, "c");
-        sffe_regvar(&sffe_formula_local, &sffe_n, "n");
+    if (!sffe_formula_original_local) {
+        sffe_formula_original_local = sffe_alloc();
+        sffe_regvar(&sffe_formula_original_local, &sffe_p_original, "p");
+        sffe_regvar(&sffe_formula_original_local, &sffe_z_original, "z");
+        sffe_regvar(&sffe_formula_original_local, &sffe_c_original, "c");
+        sffe_regvar(&sffe_formula_original_local, &sffe_n_original, "n");
     }
     if (c->userformula->expression) {
-        if (sffe_parse(&sffe_formula_local, c->userformula->expression) == 0)
-            sffe_formula_valid = true;
+        if (sffe_parse(&sffe_formula_original_local, c->userformula->expression) == 0)
+            sffe_formula_original_valid = true;
         else
-            sffe_formula_valid = false;
+            sffe_formula_original_valid = false;
     }
 
-    if (!sffe_initial_local) {
-        sffe_initial_local = sffe_alloc();
-        sffe_regvar(&sffe_initial_local, &sffe_p, "p");
-        sffe_regvar(&sffe_initial_local, &sffe_c, "c");
-        sffe_regvar(&sffe_initial_local, &sffe_n, "n");
+    if (!sffe_initial_original_local) {
+        sffe_initial_original_local = sffe_alloc();
+        sffe_regvar(&sffe_initial_original_local, &sffe_p_original, "p");
+        sffe_regvar(&sffe_initial_original_local, &sffe_c_original, "c");
+        sffe_regvar(&sffe_initial_original_local, &sffe_n_original, "n");
     }
     if (c->userinitial->expression) {
-        if (sffe_parse(&sffe_initial_local, c->userinitial->expression) == 0)
-            sffe_initial_valid = true;
+        if (sffe_parse(&sffe_initial_original_local, c->userinitial->expression) == 0)
+            sffe_initial_original_valid = true;
         else
-            sffe_initial_valid = false;
+            sffe_initial_original_valid = false;
     }
 }
 
 // Tell all threads copy the formula into their local parser
-void sffe_setlocal(fractal_context *c)
+void sffe_setlocal_original(fractal_context *c)
 {
-    xth_function(sffe_setmine, c, nthreads);
+    xth_function(sffe_setmine_original, c, nthreads);
     xth_sync();
 }
 
 #define INIT                                                                   \
-    cmplxset(sffe_p, 0, 0);                                                    \
-    cmplxset(sffe_c, pre, pim);                                                \
-    if (sffe_initial_valid)                                                    \
-        sffe_z = sffe_eval(sffe_initial_local);                                \
+    cmplxset(sffe_p_original, 0, 0);                                                    \
+    cmplxset(sffe_c_original, pre, pim);                                                \
+    if (sffe_initial_original_valid)                                                    \
+        sffe_z_original = sffe_eval(sffe_initial_original_local);                                \
     else {                                                                     \
-        cmplxset(sffe_z, zre, zim);                                            \
-        cmplxset(sffe_n, 1, 0);                                                \
+        cmplxset(sffe_z_original, zre, zim);                                            \
+        cmplxset(sffe_n_original, 1, 0);                                                \
     }
 //#define SAVE cmplxset(pZ,real(Z),imag(Z));
 //#define PRETEST 0
 #define FORMULA                                                                \
-    if (sffe_formula_valid)                                                    \
-        sffe_z = sffe_eval(sffe_formula_local);                                \
-    cmplxset(sffe_p, zre, zim);                                                \
-    zre = real(sffe_z);                                                        \
-    zim = imag(sffe_z);                                                        \
-    cmplxset(sffe_n, (unsigned int)cfractalc.maxiter - iter + 1, 0);
+    if (sffe_formula_original_valid)                                                    \
+        sffe_z_original = sffe_eval(sffe_formula_original_local);                                \
+    cmplxset(sffe_p_original, zre, zim);                                                \
+    zre = real(sffe_z_original);                                                        \
+    zim = imag(sffe_z_original);                                                        \
+    cmplxset(sffe_n_original, (unsigned int)cfractalc.maxiter - iter + 1, 0);
 
 #define BTEST less_than_4(zre *zre + zim * zim)
 // less_than_4(rp+ip)
@@ -1332,7 +1332,7 @@ void sffe_setlocal(fractal_context *c)
 #define JULIA sffe_julia
 //#define SCALC ssffe_calc
 //#define SMOOTH
-#include "docalc.h"
+#include "docalc_original.h"
 #endif
 
 static const symmetrytype sym6[] = {{0, 1.73205080758}, {0, -1.73205080758}};
@@ -1343,7 +1343,7 @@ static const symmetrytype sym16[] = {{0, 1},        {0, -1},
                                      {0, 0.414214}, {0, -0.414214},
                                      {0, 2.414214}, {0, -2.414214}};
 
-const struct formula formulas[] = {
+const struct formula original_formulas[] = {
     {                           /* 0 */
      FORMULAMAGIC,
      mand_calc,
@@ -2546,6 +2546,6 @@ const struct formula formulas[] = {
        }
 };
 
-const struct formula *currentformula;
-const int nformulas = sizeof(formulas) / sizeof(struct formula);
-const int nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
+const struct formula *original_currentformula;
+const int original_nformulas = sizeof(original_formulas) / sizeof(struct formula);
+const int original_nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
