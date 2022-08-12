@@ -41,6 +41,28 @@
 #define RANGE 2
 #endif
 
+template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula>
+void NonSmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
+{
+   do { /*try first 8 iterations */
+       MyFormula<ValueType>::Formula(Vars);
+       iter--;
+   } while (MyTest<ValueType>::BTest(Vars) && iter)
+
+}
+
+template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula, , template <class U> class MySaver = MyFormula>
+void SmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
+{
+   do { /*try first 8 iterations */
+       MySaver<ValueType>::SaveZMag(Vars);
+       MyFormula<ValueType>::Formula(Vars);
+       iter--;
+   } while (MyTest<ValueType>::BTest(Vars) && iter)
+
+}
+
+
 /* Prepare main loop */
 #ifndef NSFORMULALOOP
 #define NSFORMULALOOP(iter)                                                    \

@@ -554,6 +554,33 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 }
 
+template <class ValueType>
+class FormulaMandelbrot {
+public:
+typedef struct {
+   ValueType zre = x;
+   ValueType zim = y;
+   ValueType pre = 0;
+   ValueType pim = 0;
+   ValueType rp = 0;
+   ValueType ip = 0;
+   } VariableCollection;
+
+//void Formula(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim, ValueType &rp, ValueType &ip)
+static void Formula(VariableCollection &Vars)
+{
+   Vars.zim = (Vars.zim * Vars.zre) * static_cast<ValueType>(2) + Vars.pim;
+   Vars.zre = Vars.rp - Vars.ip + Vars.pre;
+   Vars.ip = Vars.zim * Vars.zim;
+   Vars.rp = Vars.zre * Vars.zre;
+}
+
+static bool Formula(VariableCollection &Vars)
+{
+   return less_than_4(Vars.rp + Vars.ip);
+}
+}
+
 #define VARIABLES
 #define INIT
 #define UNCOMPRESS
