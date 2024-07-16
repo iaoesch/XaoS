@@ -1144,7 +1144,7 @@ void MainWindow::showDialog(const char *name)
                 QString label(dialog->question);
                 algono->setObjectName(label + "algono");
                 algono->setValue(palcontext->palettetype);
-                algono->setRange(1, 3);
+                algono->setRange(1, PALGORITHMS);
 
                 // Algo Slider
                 algoslider = new QSlider(Qt::Horizontal, qDialog);
