@@ -8,10 +8,10 @@
 #
 # * type:
 #
-#   mkdir build; cd build \
+#   mkdir build; cd build; \
 #   CMAKE_PREFIX_PATH=<PATH_TO_QT_SDK>/Qt/6.6.1/gcc_64/lib/cmake/Qt6LinguistTools \
 #     cmake -DCMAKE_INSTALL_PREFIX=<INSTALLATION_PATH> .. && \
-#   make -j<N_PROCS>
+#   make -j`nprocs`
 #
 #   where
 #   - PATH_TO_QT_SDK is the path of your Qt SDK installation (typically $HOME/Qt),
@@ -64,7 +64,24 @@
 #   -DOPENGL=ON
 #
 #   on the cmake command line to enable the driver.
-
+#
+# Notes if you use Qt Creator to build XaoS via cmake:
+#
+# * You may get an error like 'No CMake configuration for build type "Debug" found.'
+#   This is not the real error. Instead, you need to have a look at the Issues window
+#   and learn what the problem is. Maybe some package is not found by cmake.
+#   In particular, you may need to have libcups2-dev on your system already installed.
+#
+# * Also, a WebAssembly build is now fully possible, either in Qt Creator,
+#   or, via command line:
+#
+#   mkdir build; cd build; \
+#   EMSDK=<PATH_TO_EMSDK> \
+#     cmake -DQT_CHAINLOAD_TOOLCHAIN_FILE=<PATH_TO_EMSDK>/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake \
+#     -DCMAKE_TOOLCHAIN_FILE=<PATH_TO_QT_SDK>/Qt/6.8.0/wasm_multithread/lib/cmake/Qt6/qt.toolchain.cmake .. &&
+#   make -j`nprocs`
+#
+# If you have an old cmake on your system, use <PATH_TO_QT_SDK>/Tools/CMake/bin/cmake instead of it.
 
 ###########################################################################
 
@@ -145,29 +162,44 @@ set(MACOSX_BUNDLE_ICON_FILE XaoS.icns)
 set(XaoS_ICON ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/XaoS.icns)
 set_source_files_properties(${XaoS_ICON} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
+if (EMSCRIPTEN)
+else()
 # Multilingual support: *.ts -> *.qm
 find_package(Qt6LinguistTools)
 file(GLOB TRANSLATION_FILES ${CMAKE_CURRENT_SOURCE_DIR}/i18n/*.ts)
-
 # qt_add_translation
 set_source_files_properties(${TRANSLATION_FILES}
     PROPERTIES OUTPUT_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/i18n")
 qt6_add_translation(QM_FILES ${TRANSLATION_FILES})
+endif (EMSCRIPTEN)
 
 # grab all sources for executable
 file(GLOB CXX_FILES src/ui/*.cpp src/ui-hlp/*.cpp src/util/*.cpp src/engine/*.cpp src/sffe/*.cpp)
 file(GLOB C_FILES src/sffe/*.c)
-add_executable(XaoS MACOSX_BUNDLE
-   ${CXX_FILES}
-   ${C_FILES}
-   ${QM_FILES}
-   ${XaoS_ICON}
-   src/ui/XaoS.qrc
-   XaoS.qrc
-)
 
-# link libraries
-target_link_libraries(XaoS Qt6::Widgets Qt6::PrintSupport)
+if(EMSCRIPTEN)
+    qt_add_executable(xaos
+       ${CXX_FILES}
+       ${C_FILES}
+       ${QM_FILES}
+       ${XaoS_ICON}
+       src/ui/XaoS.qrc
+       XaoS.qrc
+    )
+    target_link_libraries(xaos PUBLIC Qt6::Widgets)
+    target_link_options(xaos PUBLIC -sASYNCIFY -O3 -flto)
+else()
+    add_executable(XaoS MACOSX_BUNDLE
+       ${CXX_FILES}
+       ${C_FILES}
+       ${QM_FILES}
+       ${XaoS_ICON}
+       src/ui/XaoS.qrc
+       XaoS.qrc
+    )
+    target_link_libraries(XaoS Qt6::Widgets Qt6::PrintSupport)
+endif(EMSCRIPTEN)
+
 if(DEEPZOOM)
    target_link_libraries(XaoS quadmath)
 endif(DEEPZOOM)
@@ -175,6 +207,16 @@ if(OPENGL)
    target_link_libraries(XaoS Qt6::OpenGL Qt6::OpenGLWidgets)
 endif(OPENGL)
 
+if (EMSCRIPTEN)
+    target_link_options(xaos PUBLIC "SHELL:
+        --preload-file '${CMAKE_SOURCE_DIR}/catalogs@/catalogs'
+        --preload-file '${CMAKE_SOURCE_DIR}/examples@/examples'
+        --preload-file '${CMAKE_SOURCE_DIR}/tutorial@/tutorial'")
+    add_custom_command(TARGET xaos POST_BUILD
+        COMMAND "${CMAKE_SOURCE_DIR}/tools/postprocess-web" "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}"
+        COMMENT "Running postprocess-web..."
+    )
+else()
 # install bundle
 install(TARGETS XaoS DESTINATION bin)
 
@@ -184,3 +226,4 @@ install(DIRECTORY catalogs tutorial DESTINATION .)
 # install example files
 file(GLOB EXAMPLE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/examples/*/*.xpf)
 install(FILES ${EXAMPLE_FILES} DESTINATION examples)
+endif(EMSCRIPTEN)

@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# This script sets the document title for the WebAssembly version in xaos.js,
+# and it copies the correct qtlogo.svg to the same folder.
+
+set -e
+
+if [ $# != 2 ]; then
+ echo "Usage: $0 [source-folder] [build-folder]"
+ exit 1
+ fi
+
+test "$2/xaos.js" || {
+ echo "The file $2/xaos.js is missing."
+ exit 2
+ }
+
+# This will not work on macOS, FIXME:
+sed -i 's/Module\["print"\]/\
+ function mymessage(t) {\
+  let statustext = "STATUS: ";\
+  if (t.startsWith(statustext)) document.title = t.substring(statustext.length);\
+  }\
+/' "$2/xaos.js"
+# For a workaround on macOS, see https://stackoverflow.com/questions/12696125/sed-edit-file-in-place
+
+cp "$1/src/ui/images/qtlogo.svg" "$2"
+exit 0

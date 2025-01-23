@@ -790,17 +790,17 @@ smoothlog "Farbverlauf logarithmisch
 
 Der logarithmische Farbverlauf ist grundsätzlich
 gleich wie der normale Farbverlauf, es wird einfach
-der logarithmus der interpolierten Iterationen
+der Logarithmus der interpolierten Iterationen
 zur Bestimmung des Farbwertes verwendet.
 
 Dadurch wird das Bild in chaotischen
 Bereichen viel ruhiger."
 
-smoothlog0 "Dadurch werden mehr Details sichtbar
+smoothlog0 "Es werden mehr Details sichtbar
 und die Bilder wirken filigraner."
 
-smoothlog1 "Es gelten dieselben Einschränkungen wie beim
-normalen Farbverlauf (Funktioniert nicht bei \"Newton\" und \"Magnet\"
+smoothlog1 "Dabei gelten dieselben Einschränkungen wie beim
+normalen Farbverlauf (Funktioniert nicht bei newton und magnet
 und benötigt Truecolor)."
 
 smoothlog2 "Als Beispiel dreimal derselbe Ausschnitt, einmal
@@ -811,9 +811,7 @@ smoothlog_nosmooth "Ohne Farbverlauf."
 
 smoothlog_smooth "Mit normalem Farbverlauf."
 
-
 smoothlog_smoothlog "Mit logarithmischem Farbverlauf."
-
 
 #########################################################
 # Datei: outnew.xhf
