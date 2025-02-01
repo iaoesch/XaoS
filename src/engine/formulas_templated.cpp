@@ -1,4 +1,4 @@
-﻿/*
+/*
  *     XaoS, a fast portable realtime fractal zoomer
  *                  Copyright (C) 1996,1997 by
  *
@@ -31,7 +31,7 @@
  */
 
 // Some help can be read below about line 700. :-)
-#ifdef USE_NONTEMPLATED_VERSION
+
 #include <climits>
 #include <cstring>
 #include <cstdlib>
@@ -54,7 +54,7 @@
 #include "sffe.h"
 #endif
 
-const char *const original_incolorname[] = {"0",
+const char *const incolorname[] = {"0",
                                    "zmag",
                                    "Decomposition-like",
                                    "real/imag",
@@ -67,7 +67,7 @@ const char *const original_incolorname[] = {"0",
                                    "True-color",
                                    NULL};
 
-const char *const original_outcolorname[] = {"iter",
+const char *const outcolorname[] = {"iter",
                                     "iter+real",
                                     "iter+imag",
                                     "iter+real/imag",
@@ -77,10 +77,11 @@ const char *const original_outcolorname[] = {"iter",
                                     "potential",
                                     "color decomposition",
                                     "smooth",
+                                    "smooth log",
                                     "True-color",
                                     NULL};
 
-const char *const original_tcolorname[] = {
+const char *const tcolorname[] = {
     "black",
     "re*im sin(re^2) angle",
     "sin(re) sin(im) sin(square)",
@@ -108,8 +109,9 @@ const char *const original_tcolorname[] = {
 #define greater_than(x, y) ((x) > (y))
 #endif
 
+
 #define PERIINOUTPUT()                                                         \
-    STAT(nperi++; ninside2++);                                                 \
+STAT(nperi++; ninside2++);                                                 \
     return (cpalette.pixels[0])
 
 #define OUTOUTPUT()                                                            \
@@ -126,40 +128,114 @@ const char *const original_tcolorname[] = {
 #define OUTPUT()                                                               \
     if (iter >= (unsigned int)cfractalc.maxiter) {                             \
         if (cfractalc.incoloringmode == 10)                                    \
-            return (                                                           \
-                truecolor_output(zre, zim, pre, pim, cfractalc.intcolor, 1));  \
+        return (                                                           \
+            truecolor_output(zre, zim, pre, pim, cfractalc.intcolor, 1));  \
         INOUTPUT();                                                            \
-    } else {                                                                   \
+} else {                                                                   \
         if (cfractalc.coloringmode == OutColormodeClass::ColOut_True_color)                                      \
-            return (                                                           \
-                truecolor_output(zre, zim, pre, pim, cfractalc.outtcolor, 0)); \
+        return (                                                           \
+            truecolor_output(zre, zim, pre, pim, cfractalc.outtcolor, 0)); \
         OUTOUTPUT();                                                           \
-    }
+}
 
 #define SMOOTHOUTPUT()                                                         \
-    {                                                                          \
+{                                                                          \
         PRESMOOTH;                                                             \
         zre += 0.000001;                                                       \
         szmag += 0.000001;                                                     \
         iter = (int)(((cfractalc.maxiter - iter) * 256 +                       \
-                      log((double)(cfractalc.bailout / (szmag))) /             \
-                          log((double)((zre) / (szmag))) * 256));              \
-        iter = log(iter) * ((cpalette.size - 1))/log(cfractalc.maxiter * 256) + 1;  \
+                                                                               log((double)(cfractalc.bailout / (szmag))) /             \
+                                                                               log((double)((zre) / (szmag))) * 256));              \
+        if (cfractalc.coloringmode == OutColormodeClass::ColOut_smooth_log) { \
+            iter = /*log*/(log(iter)) * ((cpalette.size - 1))/ /*log*/(log(cfractalc.maxiter * 256)) + 1;  \
+    }\
         iter %= ((unsigned int)(cpalette.size - 1)) << 8;                      \
                                                                                \
         if ((cpalette.type & (C256 | SMALLITER)) || !(iter & 255))             \
-            return (cpalette.pixels[1 + (iter >> 8)]);                         \
-        {                                                                      \
+        return (cpalette.pixels[1 + (iter >> 8)]);                         \
+    {                                                                      \
             unsigned int i1, i2;                                               \
             i1 = cpalette.pixels[1 + (iter >> 8)];                             \
             if ((iter >> 8) == (unsigned int)(cpalette.size - 2))              \
-                i2 = cpalette.pixels[1];                                       \
+            i2 = cpalette.pixels[1];                                       \
             else                                                               \
-                i2 = cpalette.pixels[2 + (iter >> 8)];                         \
+            i2 = cpalette.pixels[2 + (iter >> 8)];                         \
             iter &= 255;                                                       \
             return (interpoltype(cpalette, i2, i1, iter));                     \
-        }                                                                      \
+    }                                                                      \
+}
+
+
+static unsigned int color_output(number_t zre, number_t zim, unsigned int iter);
+static unsigned int truecolor_output(number_t zre, number_t zim, number_t pre,
+                                     number_t pim, int mode, int inset);
+static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
+                                   number_t pim, unsigned int iter);
+
+template<class Vars, class Presmoother>
+class InOut {
+public:
+
+auto static inline _PERIINOUTPUT() {
+    STAT(nperi++; ninside2++);
+        return (cpalette.pixels[0]);
     }
+
+auto static inline _OUTOUTPUT(Vars &vars, unsigned int &iter) {
+    STAT(niter2 += iter);
+    return (cfractalc.coloringmode == OutColormodeType::ColOut_iter
+                ? cpalette.pixels[(iter % (cpalette.size - 1)) + 1]
+                : color_output(vars.zre, vars.zim, iter));
+}
+auto static inline _INOUTPUT(Vars &vars, unsigned int &iter) {
+    STAT(niter1 += iter; ninside2++);
+    return (cfractalc.incoloringmode
+                ? incolor_output(vars.zre, vars.zim, vars.pre, vars.pim, iter)
+            : cpalette.pixels[0]);
+}
+
+auto static inline _OUTPUT(Vars &vars, unsigned int &iter) {
+    if (iter >= (unsigned int)cfractalc.maxiter) {
+        if (cfractalc.incoloringmode == 10)
+            return (
+                truecolor_output(vars.zre, vars.zim, vars.pre, vars.pim, cfractalc.intcolor, 1));
+        return _INOUTPUT(vars, iter);
+    } else {
+        if (cfractalc.coloringmode == OutColormodeClass::ColOut_True_color)                                      \
+            return (
+                truecolor_output(vars.zre, vars.zim, vars.pre, vars.pim, cfractalc.outtcolor, 0));
+        return _OUTOUTPUT(vars, iter);
+    }
+}
+
+auto static inline _SMOOTHOUTPUT(Vars &vars, unsigned int &iter) {
+    {
+        Presmoother::Presmooth(vars);
+        vars.zre += 0.000001;
+        vars.szmag += 0.000001;
+        iter = (int)(((cfractalc.maxiter - iter) * 256 +
+                      log((double)(cfractalc.bailout / (vars.szmag))) /
+                          log((double)((vars.zre) / (vars.szmag))) * 256));
+        if (cfractalc.coloringmode == OutColormodeClass::ColOut_smooth_log) {
+iter = /*log*/(log(iter)) * ((cpalette.size - 1))/ /*log*/(log(cfractalc.maxiter * 256)) + 1;
+        }
+        iter %= ((unsigned int)(cpalette.size - 1)) << 8;
+
+        if ((cpalette.type & (C256 | SMALLITER)) || !(iter & 255))
+            return (cpalette.pixels[1 + (iter >> 8)]);
+        {
+            unsigned int i1, i2;
+            i1 = cpalette.pixels[1 + (iter >> 8)];
+            if ((iter >> 8) == (unsigned int)(cpalette.size - 2))
+                i2 = cpalette.pixels[1];
+            else
+                i2 = cpalette.pixels[2 + (iter >> 8)];
+            iter &= 255;
+            return (interpoltype(cpalette, i2, i1, iter));
+        }
+    }
+}
+};
 /* 2009-07-30 JB Langston:
  * Fixing bug #3: HSV modes are completely black when compiled with GCC 4...
  * Removed  qualifier from hsv_to_rgb declaration.  macro is
@@ -413,6 +489,7 @@ static unsigned int color_output(number_t zre, number_t zim, unsigned int iter)
 
     switch (cfractalc.coloringmode.ColorMode) {
         case OutColormodeType::ColOut_smooth:
+        case OutColormodeType::ColOut_smooth_log:
             break;
         case OutColormodeType::ColOut_iter_plus_real: /* real */
             i = (int)(iter + zre * SMUL);
@@ -549,6 +626,89 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
         return (interpoltype(cpalette, i2, i1, iter));
     }
 }
+#if 0
+template <class ValueType>
+class FormulaMandelbrot {
+public:
+typedef struct {
+   ValueType zre = x;
+   ValueType zim = y;
+   ValueType pre = 0;
+   ValueType pim = 0;
+   ValueType rp = 0;
+   ValueType ip = 0;
+   } VariableCollection;
+
+//void Formula(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim, ValueType &rp, ValueType &ip)
+static void Formula(VariableCollection &Vars)
+{
+   Vars.zim = (Vars.zim * Vars.zre) * static_cast<ValueType>(2) + Vars.pim;
+   Vars.zre = Vars.rp - Vars.ip + Vars.pre;
+   Vars.ip = Vars.zim * Vars.zim;
+   Vars.rp = Vars.zre * Vars.zre;
+}
+
+static bool Formulax(VariableCollection &Vars)
+{
+   return less_than_4(Vars.rp + Vars.ip);
+}
+};
+#endif
+
+template<class BaseVars, bool Smooth>
+class MandelFormula {
+public:
+    template<bool HasSmooth>
+    class MyVars : public BaseVars {
+    public:
+        typedef  typename BaseVars::ValueType ValueType;
+        ValueType ip;
+        ValueType rp;
+
+        MyVars(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
+            : BaseVars(zre, zim, pre, pim) {}
+
+    };
+    template<>
+    class MyVars<true> : public MyVars<false> {
+    public:
+        typedef  typename BaseVars::ValueType ValueType;
+        MyVars<true>(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
+            : MyVars<false>(zre, zim, pre, pim) {}
+
+        inline void _SAVEZMAG() {this->szmag = this->rp + this->ip;}
+
+    };
+
+    typedef MyVars<Smooth> Vars;
+    inline static void F(Vars &vars) {
+        vars.zim = (vars.zim * vars.zre) * 2 + vars.pim;                                               \
+        vars.zre = vars.rp - vars.ip + vars.pre;                                                       \
+        vars.ip = vars.zim * vars.zim;                                                            \
+        vars.rp = vars.zre * vars.zre;
+
+    }
+    inline static void UF(Vars &vars) {F(vars);}
+    inline static void UEnd(Vars &vars) {}
+
+
+    inline static auto BTest(Vars &vars) {
+        return less_than_4(vars.rp + vars.ip);
+    }
+
+    inline static auto Pretest(Vars &vars) {return false;}
+
+    inline static void Preset(Vars &vars) {
+        vars.rp = vars.zre * vars.zre;
+        vars.ip = vars.zim * vars.zim;
+    }
+    inline static void _POSTCALC(Vars &vars) {}
+
+};
+
+
+#include "docalc_templated.h"
+static unsigned int (*fp)(number_t, number_t, number_t, number_t) = calc<MandelFormula, false, false, InOut>;
 
 #define VARIABLES
 #define INIT
@@ -595,7 +755,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define PRETEST 0
 #define FORMULA                                                                \
@@ -613,7 +773,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand3_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define UNCOMPRESS
 #define VARIABLES number_t br, tmp;
@@ -652,7 +812,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA magnet_julia
 #define RANGE 4
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define UNCOMPRESS
 #define VARIABLES number_t inre, inim, tmp1, tmp2, dnre, nmre, dnim;
@@ -703,7 +863,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA magnet2_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define BTEST less_than_4(rp + ip)
 #define FORMULA                                                                \
@@ -720,7 +880,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand4_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -739,7 +899,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand5_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -758,7 +918,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand6_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t t;
 #define BTEST less_than_4(rp + ip)
@@ -777,7 +937,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mand9_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -793,7 +953,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI trice_peri
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t zor, zoi;
 /* For some reason Cat's Eye renders as an empty circle unless the bailout
@@ -818,7 +978,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI catseye_peri
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -835,7 +995,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA mbar_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -859,7 +1019,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI mlambda_peri
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t zre1, zim1, zre2, zim2;
 #define INIT                                                                   \
@@ -880,7 +1040,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC manowar_calc
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t zre1, zim1;
 #define INIT                                                                   \
@@ -899,7 +1059,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC spider_calc
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -925,7 +1085,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC sier_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -951,7 +1111,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC goldsier_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT
@@ -981,7 +1141,78 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC circle7_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
+
+#define VARIABLES
+#define INIT
+#define BTEST (zre * zre + zim * zim < 0.6944444444444445)
+#define FORMULA                                                                \
+  const double rd = 0.25;                                       \
+  zre = 3 * zre;                                                               \
+  zim = 3 * zim;                                                               \
+  if ((zim + 2) * (zim + 2) + zre * zre < rd) {                                \
+    zim = zim + 2;                                                             \
+  }                                                                            \
+  if ((zim + 1.7320508075688772) * (zim + 1.7320508075688772) +                \
+          (zre + 1) * (zre + 1) <                                              \
+      rd) {                                                                    \
+    zim = zim + 1.7320508075688772;                                            \
+    zre = zre + 1;                                                             \
+  }                                                                            \
+  if ((zim + 1) * (zim + 1) +                                                  \
+          (zre + 1.7320508075688772) * (zre + 1.7320508075688772) <            \
+      rd) {                                                                    \
+    zim = zim + 1;                                                             \
+    zre = zre + 1.7320508075688772;                                            \
+  }                                                                            \
+  if ((zre + 2) * (zre + 2) + zim * zim < rd) {                                \
+    zre = zre + 2;                                                             \
+  }                                                                            \
+  if ((zim - 1) * (zim - 1) +                                                  \
+          (zre + 1.7320508075688772) * (zre + 1.7320508075688772) <            \
+      rd) {                                                                    \
+    zim = zim - 1;                                                             \
+    zre = zre + 1.7320508075688772;                                            \
+  }                                                                            \
+  if ((zim - 1.7320508075688772) * (zim - 1.7320508075688772) +                \
+          (zre + 1) * (zre + 1) <                                              \
+      rd) {                                                                    \
+    zim = zim - 1.7320508075688772;                                            \
+    zre = zre + 1;                                                             \
+  }                                                                            \
+  if ((zim - 2) * (zim - 2) + zre * zre < rd) {                                \
+    zim = zim - 2;                                                             \
+  }                                                                            \
+  if ((zim - 1.7320508075688772) * (zim - 1.7320508075688772) +                \
+          (zre - 1) * (zre - 1) <                                              \
+      rd) {                                                                    \
+    zim = zim - 1.7320508075688772;                                            \
+    zre = zre - 1;                                                             \
+  }                                                                            \
+  if ((zim - 1) * (zim - 1) +                                                  \
+          (zre - 1.7320508075688772) * (zre - 1.7320508075688772) <            \
+      rd) {                                                                    \
+    zim = zim - 1;                                                             \
+    zre = zre - 1.7320508075688772;                                            \
+  }                                                                            \
+  if ((zre - 2) * (zre - 2) + zim * zim < rd) {                                \
+    zre = zre - 2;                                                             \
+  }                                                                            \
+  if ((zim + 1) * (zim + 1) +                                                  \
+          (zre - 1.7320508075688772) * (zre - 1.7320508075688772) <            \
+      rd) {                                                                    \
+    zim = zim + 1;                                                             \
+    zre = zre - 1.7320508075688772;                                            \
+  }                                                                            \
+  if ((zim + 1.7320508075688772) * (zim + 1.7320508075688772) +                \
+          (zre - 1) * (zre - 1) <                                              \
+      rd) {                                                                    \
+    zim = zim + 1.7320508075688772;                                            \
+    zre = zre - 1;                                                             \
+  }
+#define CALC clock_calc
+#define RANGE 2
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT
@@ -1004,7 +1235,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA symbarn_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define INIT                                                                   \
@@ -1040,7 +1271,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
         zim = zim - pim;
 #define CALC carpet_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST                                                                  \
@@ -1078,7 +1309,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     }
 #define CALC koch_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t zre1, zim1;
 #define INIT                                                                   \
@@ -1095,7 +1326,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim = zim1;
 #define CALC hornflake_calc
 #define RANGE 2
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1114,7 +1345,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley1_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1133,7 +1364,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley2_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES
 #define BTEST less_than_4(rp + ip)
@@ -1153,7 +1384,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define JULIA barnsley3_julia
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t n, sqrr, sqri, zre1, zim1;
 #define INIT                                                                   \
@@ -1174,7 +1405,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim1 -= zim;                                                               \
     n = zre1 * zre1 + zim1 * zim1;
 #define CALC newton_calc
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t n, sqrr, sqri, zre1, zim1;
 #define INIT                                                                   \
@@ -1194,7 +1425,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
     zim1 -= zim;                                                               \
     n = zre1 * zre1 + zim1 * zim1;
 #define CALC newton4_calc
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t zpr, zip;
 #define SAVEVARIABLES number_t szpr, szip;
@@ -1215,7 +1446,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define CALC phoenix_calc
 #define PERI phoenix_peri
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t tr, ti, zpr, zpm, rp1, ip1;
 #define INIT                                                                   \
@@ -1234,7 +1465,7 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define SMOOTH
 #define CUSTOMSAVEZMAG szmag = zpr * zpr + zpm * zpm
 #define PRESMOOTH zre = zpr * zpr + zpm * zpm
-#include "docalc_original.h"
+#include "docalc.h"
 
 #define VARIABLES number_t yre, yim, re1tmp, re2tmp, im1tmp;
 #define BTEST (rp + ip < 9 || (yre * yre + yim * yim) < 4 * (rp + ip))
@@ -1255,76 +1486,76 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 #define PERI beryl_peri
 #define RANGE 2
 #define RPIP
-#include "docalc_original.h"
+#include "docalc.h"
 
 #ifdef USE_SFFE
 
 // Parser is not thread safe so each thread needs its own instance
-thread_local bool sffe_formula_original_valid = false;
-thread_local sffe *sffe_formula_original_local = NULL;
-thread_local bool sffe_initial_original_valid = false;
-thread_local sffe *sffe_initial_original_local = NULL;
-thread_local cmplx sffe_z_original, sffe_c_original, sffe_p_original, sffe_n_original;
+thread_local bool sffe_formula_valid = false;
+thread_local sffe *sffe_formula_local = NULL;
+thread_local bool sffe_initial_valid = false;
+thread_local sffe *sffe_initial_local = NULL;
+thread_local cmplx sffe_z, sffe_c, sffe_p, sffe_n;
 
 // Copy the formula from the main parser to this thread's local parser
 // Possibly initializing the parser if this is the first time
-void sffe_setmine_original(void *data, struct taskinfo * /*task*/, int /*r1*/,
+void sffe_setmine(void *data, struct taskinfo * /*task*/, int /*r1*/,
                   int /*r2*/)
 {
     fractal_context *c = (fractal_context *)data;
-    if (!sffe_formula_original_local) {
-        sffe_formula_original_local = sffe_alloc();
-        sffe_regvar(&sffe_formula_original_local, &sffe_p_original, "p");
-        sffe_regvar(&sffe_formula_original_local, &sffe_z_original, "z");
-        sffe_regvar(&sffe_formula_original_local, &sffe_c_original, "c");
-        sffe_regvar(&sffe_formula_original_local, &sffe_n_original, "n");
+    if (!sffe_formula_local) {
+        sffe_formula_local = sffe_alloc();
+        sffe_regvar(&sffe_formula_local, &sffe_p, "p");
+        sffe_regvar(&sffe_formula_local, &sffe_z, "z");
+        sffe_regvar(&sffe_formula_local, &sffe_c, "c");
+        sffe_regvar(&sffe_formula_local, &sffe_n, "n");
     }
     if (c->userformula->expression) {
-        if (sffe_parse(&sffe_formula_original_local, c->userformula->expression) == 0)
-            sffe_formula_original_valid = true;
+        if (sffe_parse(&sffe_formula_local, c->userformula->expression) == 0)
+            sffe_formula_valid = true;
         else
-            sffe_formula_original_valid = false;
+            sffe_formula_valid = false;
     }
 
-    if (!sffe_initial_original_local) {
-        sffe_initial_original_local = sffe_alloc();
-        sffe_regvar(&sffe_initial_original_local, &sffe_p_original, "p");
-        sffe_regvar(&sffe_initial_original_local, &sffe_c_original, "c");
-        sffe_regvar(&sffe_initial_original_local, &sffe_n_original, "n");
+    if (!sffe_initial_local) {
+        sffe_initial_local = sffe_alloc();
+        sffe_regvar(&sffe_initial_local, &sffe_p, "p");
+        sffe_regvar(&sffe_initial_local, &sffe_c, "c");
+        sffe_regvar(&sffe_initial_local, &sffe_n, "n");
     }
     if (c->userinitial->expression) {
-        if (sffe_parse(&sffe_initial_original_local, c->userinitial->expression) == 0)
-            sffe_initial_original_valid = true;
+        if (sffe_parse(&sffe_initial_local, c->userinitial->expression) == 0)
+            sffe_initial_valid = true;
         else
-            sffe_initial_original_valid = false;
+            sffe_initial_valid = false;
     }
 }
 
 // Tell all threads copy the formula into their local parser
-void sffe_setlocal_original(fractal_context *c)
+void sffe_setlocal(fractal_context *c)
 {
-    xth_function(sffe_setmine_original, c, nthreads);
+    xth_function(sffe_setmine, c, nthreads);
     xth_sync();
 }
 
 #define INIT                                                                   \
-    cmplxset(sffe_p_original, 0, 0);                                                    \
-    cmplxset(sffe_c_original, pre, pim);                                                \
-    if (sffe_initial_original_valid)                                                    \
-        sffe_z_original = sffe_eval(sffe_initial_original_local);                                \
+    cmplxset(sffe_p, 0, 0);                                                    \
+    cmplxset(sffe_c, pre, pim);                                                \
+    if (sffe_initial_valid)                                                    \
+        sffe_z = sffe_eval(sffe_initial_local);                                \
     else {                                                                     \
-        cmplxset(sffe_z_original, zre, zim);                                            \
-        cmplxset(sffe_n_original, 1, 0);                                                \
+        cmplxset(sffe_z, zre, zim);                                            \
+        cmplxset(sffe_n, 1, 0);                                                \
     }
 //#define SAVE cmplxset(pZ,real(Z),imag(Z));
 //#define PRETEST 0
 #define FORMULA                                                                \
-    if (sffe_formula_original_valid)                                                    \
-        sffe_z_original = sffe_eval(sffe_formula_original_local);                                \
-    cmplxset(sffe_p_original, zre, zim);                                                \
-    zre = real(sffe_z_original);                                                        \
-    zim = imag(sffe_z_original);                                                        \
-    cmplxset(sffe_n_original, (unsigned int)cfractalc.maxiter - iter + 1, 0);
+    if (sffe_formula_valid)                                                    \
+        sffe_z = sffe_eval(sffe_formula_local);                                \
+    cmplxset(sffe_p, zre, zim);                                                \
+    zre = real(sffe_z);                                                        \
+    zim = imag(sffe_z);                                                        \
+    cmplxset(sffe_n, (unsigned int)cfractalc.maxiter - iter + 1, 0);
 
 #define BTEST less_than_4(zre *zre + zim * zim)
 // less_than_4(rp+ip)
@@ -1332,7 +1563,7 @@ void sffe_setlocal_original(fractal_context *c)
 #define JULIA sffe_julia
 //#define SCALC ssffe_calc
 //#define SMOOTH
-#include "docalc_original.h"
+#include "docalc.h"
 #endif
 
 static const symmetrytype sym6[] = {{0, 1.73205080758}, {0, -1.73205080758}};
@@ -1343,10 +1574,10 @@ static const symmetrytype sym16[] = {{0, 1},        {0, -1},
                                      {0, 0.414214}, {0, -0.414214},
                                      {0, 2.414214}, {0, -2.414214}};
 
-const struct formula original_formulas[] = {
+const struct formula formulas[] = {
     {                           /* 0 */
      FORMULAMAGIC,
-     mand_calc,
+     fp, //mand_calc,
      mand_peri,
      smand_calc,
      smand_peri,
@@ -1366,6 +1597,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, 0, 0, NULL},
       {INT_MAX, 0, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
       {INT_MAX, 0, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       },
@@ -1407,6 +1639,7 @@ const struct formula original_formulas[] = {
       {0, 0, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {0, 0, 0, NULL},
+      {0, 0, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       },
      {
@@ -1446,6 +1679,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, 0, 0, NULL},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 2, sym6},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
       },
@@ -1487,6 +1721,7 @@ const struct formula original_formulas[] = {
       {0, 0, 2, sym8},
       {INT_MAX, INT_MAX, 0, NULL},
       {0, 0, 2, sym8},
+      {0, 0, 2, sym8},
       {INT_MAX, INT_MAX, 0, NULL},
       },
      {
@@ -1526,6 +1761,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, 0, 0, NULL},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 2, sym6},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
       },
@@ -1567,6 +1803,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, 0, 2, sym6},
+      {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
       },
      {
@@ -1606,6 +1843,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 2, sym6},
       {INT_MAX, 0, 2, sym6},
       {INT_MAX, INT_MAX, 0, NULL},
       },
@@ -2359,6 +2597,7 @@ const struct formula original_formulas[] = {
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
       },
      {
       {INT_MAX, INT_MAX, 0, NULL},
@@ -2387,6 +2626,7 @@ const struct formula original_formulas[] = {
      {0.5, 0.43, 1.5, 1.0},
      0, 0, 0.5, 0.8660254,
      {
+      {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
@@ -2437,6 +2677,46 @@ const struct formula original_formulas[] = {
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      },
+     {
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      },
+     MANDEL_BTRACE,
+     },
+    {
+     FORMULAMAGIC,
+     clock_calc,
+     NULL,
+     NULL,
+     NULL,
+     NULL,
+     {"Clock", "Clock"},
+     "clock",
+     {0.0, 0.0, 2.5, 2.5},
+     0, 0, 0.0, 0.0,
+     {
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
       },
      {
       {INT_MAX, INT_MAX, 0, NULL},
@@ -2467,6 +2747,7 @@ const struct formula original_formulas[] = {
      /* Arpad hasn't created the symmetry properties, */
      /* because he doesn't considered it to be important */
      {
+      {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
       {INT_MAX, INT_MAX, 0, NULL},
@@ -2528,6 +2809,7 @@ const struct formula original_formulas[] = {
         {INT_MAX, INT_MAX, 0, NULL},
         {INT_MAX, INT_MAX, 0, NULL},
         {INT_MAX, INT_MAX, 0, NULL},
+        {INT_MAX, INT_MAX, 0, NULL},
         },
        {
         {INT_MAX, INT_MAX, 0, NULL},
@@ -2546,8 +2828,6 @@ const struct formula original_formulas[] = {
        }
 };
 
-const struct formula *original_currentformula;
-const int original_nformulas = sizeof(original_formulas) / sizeof(struct formula);
-const int original_nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
-
-#endif
+const struct formula *currentformula;
+const int nformulas = sizeof(formulas) / sizeof(struct formula);
+const int nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30

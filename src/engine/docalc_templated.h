@@ -6,6 +6,9 @@
  * calculation loops for various formulas/algorithms. It uses lots of
  * coprocesor magic. It is included from formulas.c
  */
+#include "config.h"
+#include "fractal.h"
+
 
 #ifndef VARIABLES /*supply defaultd values */
 #define VARIABLES
@@ -41,6 +44,52 @@
 #define RANGE 2
 #endif
 
+#if 0
+template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula>
+void NonSmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
+{
+   do { /*try first 8 iterations */
+       MyFormula<ValueType>::Formula(Vars);
+       iter--;
+   } while (MyTest<ValueType>::BTest(Vars) && iter);
+
+}
+
+template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula, , template <class U> class MySaver = MyFormula>
+void SmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
+{
+   do { /*try first 8 iterations */
+       MySaver<ValueType>::SaveZMag(Vars);
+       MyFormula<ValueType>::Formula(Vars);
+       iter--;
+   } while (MyTest<ValueType>::BTest(Vars) && iter);
+
+}
+#endif
+
+template<class Formula>
+class DefaultSmoothLoop {
+public:
+    inline static void L(unsigned int &iter, typename Formula::Vars &var)  {
+        do {
+            var.SAVEZMAG();
+            Formula::F(var);
+            iter--;
+        } while (Formula::BTest(var) && iter) ;
+    }
+};
+
+template<class Formula>
+class DefaultLoop {
+public:
+    inline static void L(unsigned int &iter, typename Formula::Vars &var)  {
+        do {
+            Formula::F(var);
+            iter--;
+        } while (Formula::BTest(var) && iter) ;
+    }
+};
+
 /* Prepare main loop */
 #ifndef NSFORMULALOOP
 #define NSFORMULALOOP(iter)                                                    \
@@ -75,6 +124,131 @@
 #define SAVEZMAG
 #endif
 
+template<bool Smooth, class ValueType = number_t>
+class BaseVars {
+
+};
+
+
+template<class ValueT>
+class BaseVars<false, ValueT> {
+public:
+    typedef ValueT ValueType;
+    ValueType &zre;
+    ValueType &zim;
+    ValueType &pre;
+    ValueType &pim;
+
+    BaseVars(ValueType &_zre, ValueType &_zim, ValueType &_pre, ValueType &_pim)
+        : zre(_zre), zim(_zim), pre(_pre), pim(_pim) {}
+    void Save() {}
+    void Restore() {}
+
+};
+
+template<class ValueType>
+class BaseVars<true, ValueType> : public BaseVars<false, ValueType> {
+public:
+    ValueType szmag;
+
+};
+
+template<template <class, bool> class FormulaT, bool Smooth, bool Compress, template<class, class> class IOT, class Looper = DefaultLoop<FormulaT<BaseVars<Smooth, number_t>, Smooth>>>
+static unsigned int calc(number_t zre, number_t zim, number_t pre,
+                         number_t pim)
+{
+    typedef IOT<BaseVars<Smooth, number_t>, int> IO;
+    typedef FormulaT<BaseVars<Smooth, number_t>, Smooth> Formula;
+    unsigned int iter = cfractalc.maxiter;
+    typename Formula::Vars vars(zre, zim, pre, pim);
+    if constexpr (Compress) {
+        //VARIABLES;
+        //typename Formula::Vars vars(zre, zim, pre, pim);
+        INIT;
+        if (Formula::Pretest(vars))
+            iter = 0;
+        else {
+            Formula::Preset(vars);
+            if (Formula::BTest(vars) && iter) {
+                Looper::L(iter, vars);
+            }
+        }
+    } else {
+        number_t szre = 0, szim = 0;
+        SAVEVARIABLES;
+        //VARIABLES;
+        //typename Formula::Vars vars(zre, zim, pre, pim);
+        INIT;
+        if (Formula::Pretest(vars))
+            iter = 0;
+        else {
+            Formula::Preset(vars);
+            if (iter < 16) {
+
+                /*try first 8 iterations */
+                if (Formula::BTest(vars) && iter) {
+                    Looper::L(iter, vars);
+                }
+
+            } else {
+                iter = 8 + (cfractalc.maxiter & 7);
+
+                /*try first 8 iterations */
+                if (Formula::BTest(vars) && iter) {
+                    Looper::L(iter, vars);
+                }
+
+                if (Formula::BTest(vars)) {
+                    iter = (cfractalc.maxiter - 8) & (~7);
+                    iter >>= 3;
+                    /*do next 8 iteration w/o out of bounds checking */
+                    do {
+                        /*hmm..we are probably in some deep area. */
+                        szre = vars.zre; /*save current position */
+                        szim = vars.zim;
+                        vars.Save();
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UF(vars);
+                        Formula::UEnd(vars);
+                        iter--;
+                    } while (Formula::BTest(vars) && iter);
+                    if (!(Formula::BTest(vars))) { /*we got out of bounds */
+                        iter <<= 3;
+                        iter += 8; /*restore saved position */
+                        vars.Restore();
+                        vars.zre = szre;
+                        vars.zim = szim;
+                        Formula::Preset(vars);
+                        Looper::L(iter, vars);
+
+                    }
+                } else
+                    iter += cfractalc.maxiter - 8 - (cfractalc.maxiter & 7);
+            }
+        }
+    }
+    if constexpr (Smooth) {
+
+        if (iter) {
+            return IO::_SMOOTHOUTPUT();
+        }
+        Formula::_POSTCALC(vars);
+        iter = cfractalc.maxiter - iter;
+        return IO::_INOUTPUT(vars, iter);
+    } else {
+
+        Formula::_POSTCALC(vars);
+        iter = cfractalc.maxiter - iter;
+        return IO::_OUTPUT(vars, iter);
+    }
+}
+#if 0
 #ifdef UNCOMPRESS
 /*uncompressed version of loop */
 #ifdef SMOOTHMODE
@@ -681,6 +855,7 @@ static void JULIA(struct image *image, number_t pre, number_t pim)
 #ifdef SMOOTH
 #define SMOOTHMODE
 #include "docalc.h"
+#endif
 #endif
 #endif
 
