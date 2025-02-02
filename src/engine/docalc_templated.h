@@ -44,28 +44,29 @@
 #define RANGE 2
 #endif
 
-// Iterates Z until end condition is reached, stores previous
-// Magnitude of Z for smooth color caltulation
-// Hint: DefaultSmoothLoop and DefaultLoop might be combined
-//       using constexpr-if(smooth)
-template<class Formula>
-class DefaultSmoothLoop {
+
+// Iterates Z until end condition is reached
+template<class Formula, bool Smooth>
+class DefaultLoop {
 public:
     inline static void IterateUntilEnd(unsigned int &iter, typename Formula::Variables &vars)  {
         do {
-            vars.SaveMagnitudeOfZ();
             Formula::DoOneIterationStep(vars);
             iter--;
         } while (Formula::BailoutTest(vars) && iter) ;
     }
 };
 
-// Iterates Z until end condition is reached
+// Iterates Z until end condition is reached, stores previous
+// Magnitude of Z for smooth color caltulation
+// Hint: DefaultSmoothLoop and DefaultLoop might be combined
+//       using constexpr-if(smooth)
 template<class Formula>
-class DefaultLoop {
+class DefaultLoop<Formula, true> {
 public:
     inline static void IterateUntilEnd(unsigned int &iter, typename Formula::Variables &vars)  {
         do {
+            vars.SaveMagnitudeOfZ();
             Formula::DoOneIterationStep(vars);
             iter--;
         } while (Formula::BailoutTest(vars) && iter) ;
@@ -124,7 +125,7 @@ public:
 
 };
 
-template<template <class, bool> class FormulaT, bool Smooth, template<class> class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>>>
+template<template <class, bool> class FormulaT, bool Smooth, template<class> class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>, Smooth>>
 static unsigned int calc(number_t zre, number_t zim, number_t pre,
                          number_t pim)
 {
@@ -456,7 +457,7 @@ static unsigned int CALC(number_t zre, number_t zim, number_t pre, number_t pim)
 
 
 template<template <class, bool> class FormulaT, bool Smooth, template<class
-                                                                     > class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>>>
+                                                                     > class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>, Smooth>>
 static unsigned int peri(number_t zre, number_t zim, number_t pre, number_t pim)
 {
     // Some shortcuts for easier coding
@@ -661,7 +662,7 @@ if constexpr (Smooth) {
     return ColorConverter::GetColor(vars, iter);
 }
 periodicity:
-    ColorConverter::_PERIINOUTPUT();
+    return ColorConverter::_PERIINOUTPUT();
 
 }
 
@@ -931,7 +932,148 @@ periodicity:
 /*endif PERI */
 #undef PCHECK
 #endif
+#endif
 
+template<template <class, bool> class FormulaT, int Range, template<class> class Colorizer>
+static void julia(struct image *image, number_t pre, number_t pim)
+{
+    // Some shortcuts for easier coding
+    typedef FormulaT<CommonVariables<false, number_t>, false> Formula;
+    typedef Colorizer<Formula> ColorConverter;
+
+    number_t zim, zre;
+    typename Formula::Variables vars(zre, zim, pre, pim);
+
+    int i, i1, i2, j, x, y;
+    unsigned char iter, itmp2, itmp;
+    number_t im, xdelta, ydelta, range, rangep;
+    number_t xstep, ystep;
+    unsigned char *queue[QMAX];
+    unsigned char **qptr;
+    unsigned char *addr, **addr1 = image->currlines;
+#ifdef STATISTICS
+    int guessed = 0, unguessed = 0, iters = 0;
+#endif
+    VARIABLES;
+    range = (number_t)Range;
+    rangep = range * range;
+
+    xdelta = image->width / (RMAX - RMIN);
+    ydelta = image->height / (IMAX - IMIN);
+    xstep = (RMAX - RMIN) / image->width;
+    ystep = (IMAX - IMIN) / image->height;
+    init_julia(image, rangep, range, xdelta, ystep);
+    for (i2 = 0; i2 < 2; i2++)
+        for (i1 = 0; i1 < image->height; i1++) {
+            if (i1 % 2)
+                i = image->height / 2 - i1 / 2;
+            else
+                i = image->height / 2 + i1 / 2 + 1;
+            if (i >= image->height)
+                continue;
+            im = IMIN + (i + 0.5) * ystep;
+            for (j = (i + i2) & 1; j < image->width; j += 2) {
+                STAT(total2++);
+                addr = addr1[i] + j;
+                if (*addr != NOT_CALCULATED)
+                    continue;
+                x = j;
+                y = i;
+                if (y > 0 && y < image->height - 1 && *(addr + 1) && x > 0 &&
+                    x < image->width - 1) {
+                    if ((iter = *(addr + 1)) != NOT_CALCULATED &&
+                        iter == *(addr - 1) && iter == addr1[y - 1][x] &&
+                        iter == addr1[y + 1][x]) {
+                        *addr = *(addr + 1);
+                        continue;
+                    }
+                }
+                vars.zim = im;
+                vars.zre = RMIN + (j + 0.5) * xstep;
+                iter = (unsigned char)0;
+                qptr = queue;
+                vars.ip = (vars.zim * vars.zim); // Does the same as preset
+                vars.rp = (vars.zre * vars.zre); // but preset is configurable
+                //FORMULA::PresetVariables(vars);// Therefore do not usde preset
+                INIT;
+                while (1) {
+                    if (*addr != NOT_CALCULATED
+#ifdef SAG
+                        && (*addr == INPROCESS ||
+                            (*addr != (unsigned char)1 &&
+                             (itmp2 = *(addr + 1)) != NOT_CALCULATED &&
+                             ((itmp2 != (itmp = *(addr - 1)) &&
+                               itmp != NOT_CALCULATED) ||
+                              (itmp2 != (itmp = *((addr1[y + 1]) + x)) &&
+                               itmp != NOT_CALCULATED) ||
+                              (itmp2 != (itmp = *((addr1[y - 1]) + x)) &&
+                               itmp != NOT_CALCULATED))))
+#endif
+                        ) {
+                        if (*addr == INPROCESS || *addr == INSET) {
+                            *qptr = addr;
+                            qptr++;
+                            STAT(guessed++);
+                            goto inset;
+                        }
+                        STAT(guessed++);
+                        iter = *addr;
+                        goto outset;
+                    }
+#ifdef STATISTICS
+                    if (*addr != NOT_CALCULATED)
+                        unguessed++;
+#endif
+                    if (*addr != INPROCESS) {
+                        *qptr = addr;
+                        qptr++;
+                        *addr = INPROCESS;
+                        if (qptr >= queue + QMAX)
+                            goto inset;
+                    }
+                    STAT(iters++);
+                    Formula::DoOneIterationStep(vars);
+                    vars.ip = (vars.zim * vars.zim); // Does the same as preset
+                    vars.rp = (vars.zre * vars.zre); // but preset is configurable
+                    //FORMULA::PresetVariables(vars);// Therefore do not usde preset
+                    if (greater_than(vars.rp + vars.ip, Range) || !(Formula::BailoutTest(vars)))
+                        goto outset;
+                    x = (int)((vars.zre - RMIN) * xdelta);
+                    y = (int)((vars.zim - IMIN) * ydelta);
+                    addr = addr1[y] + x;
+                    if ((itmp = *(addr + 1)) != NOT_CALCULATED &&
+                        itmp == *(addr - 1) && itmp == addr1[y - 1][x] &&
+                        itmp == addr1[y + 1][x]) {
+                        *addr = *(addr + 1);
+                    }
+                }
+            inset:
+                while (qptr > queue) {
+                    qptr--;
+                    **qptr = INSET;
+                }
+                continue;
+            outset:
+                y = image->palette->size;
+                while (qptr > queue) {
+                    qptr--;
+                    iter++;
+                    if ((int)iter >= y)
+                        iter = (unsigned char)1;
+                    **qptr = iter;
+                }
+            }
+        }
+#ifdef STATISTICS
+    printf("guessed %i, unguessed %i, iterations %i\n", guessed, unguessed,
+           iters);
+    guessed2 += guessed;
+    unguessed2 += unguessed;
+    iters2 += iters;
+#endif
+}
+
+#if 0
 #ifndef SMOOTHMODE
 #ifdef JULIA
 static void JULIA(struct image *image, number_t pre, number_t pim)

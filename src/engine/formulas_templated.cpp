@@ -732,6 +732,7 @@ unsigned int (*GlobalMandelbrotForTimeTest)(number_t, number_t, number_t, number
 static unsigned int (*fpms)(number_t, number_t, number_t, number_t) = calc<MandelFormula, true, Colorizer>;
 static unsigned int (*fpmp)(number_t, number_t, number_t, number_t) = peri<MandelFormula, false, Colorizer>;
 static unsigned int (*fpmps)(number_t, number_t, number_t, number_t) = peri<MandelFormula, true, Colorizer>;
+static void (*fpmj)(struct image *, number_t, number_t) = julia<MandelFormula, 2, Colorizer>;
 
 #define VARIABLES
 #define INIT
@@ -1597,13 +1598,14 @@ static const symmetrytype sym16[] = {{0, 1},        {0, -1},
                                      {0, 0.414214}, {0, -0.414214},
                                      {0, 2.414214}, {0, -2.414214}};
 
+#define DEBUG_TEMPLATES
 const struct formula formulas[] = {
     {                           /* 0 */
      FORMULAMAGIC,
-     fp, //mand_calc, //fp,
-     fpmp, //mand_peri,
-     fpms, //smand_calc,
-     fpmps, //smand_peri,
+     mand_calc, //fp,
+     mand_peri,
+     smand_calc,
+     smand_peri,
      mand_julia,
      {"Mandelbrot", "Julia"},
      "mandel",
@@ -1639,6 +1641,49 @@ const struct formula formulas[] = {
       },
      MANDEL_BTRACE,
      },
+#ifdef DEBUG_TEMPLATES
+    {                           /* 0 */
+     FORMULAMAGIC,
+     fp, //mand_calc, //fp,
+     fpmp, //mand_peri,
+     fpms, //smand_calc,
+     fpmps, //smand_peri,
+     fpmj, // mand_julia,
+     {"Mandeltmpl", "Juliatmpl"},
+     "mandtmpl",
+     /*{0.5, -2.0, 1.25, -1.25}, */
+     {-0.75, 0.0, 2.5, 2.5},
+     1, 1, 0.0, 0.0,
+     {
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      },
+     {
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, 0, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      {INT_MAX, INT_MAX, 0, NULL},
+      },
+     MANDEL_BTRACE,
+     },
+#else
     {                           /* 1 */
      FORMULAMAGIC,
      mand3_calc,
@@ -1680,6 +1725,7 @@ const struct formula formulas[] = {
       },
      MANDEL_BTRACE,
      },
+#endif
     {                           /* 2 */
      FORMULAMAGIC,
      mand4_calc,
