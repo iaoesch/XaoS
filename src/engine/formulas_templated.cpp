@@ -172,45 +172,46 @@ static unsigned int truecolor_output(number_t zre, number_t zim, number_t pre,
 static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
                                    number_t pim, unsigned int iter);
 
-template<class Vars, class Presmoother>
-class InOut {
+template<class Formula>
+class Colorizer {
 public:
+    typedef typename Formula::Variables Vars;
 
 auto static inline _PERIINOUTPUT() {
     STAT(nperi++; ninside2++);
         return (cpalette.pixels[0]);
     }
 
-auto static inline _OUTOUTPUT(Vars &vars, unsigned int &iter) {
+auto static inline GetOutColor(Vars &vars, unsigned int &iter) {
     STAT(niter2 += iter);
     return (cfractalc.coloringmode == OutColormodeType::ColOut_iter
                 ? cpalette.pixels[(iter % (cpalette.size - 1)) + 1]
                 : color_output(vars.zre, vars.zim, iter));
 }
-auto static inline _INOUTPUT(Vars &vars, unsigned int &iter) {
+auto static inline GetInColor(Vars &vars, unsigned int &iter) {
     STAT(niter1 += iter; ninside2++);
     return (cfractalc.incoloringmode
                 ? incolor_output(vars.zre, vars.zim, vars.pre, vars.pim, iter)
             : cpalette.pixels[0]);
 }
 
-auto static inline _OUTPUT(Vars &vars, unsigned int &iter) {
+auto static inline GetColor(Vars &vars, unsigned int &iter) {
     if (iter >= (unsigned int)cfractalc.maxiter) {
         if (cfractalc.incoloringmode == 10)
             return (
                 truecolor_output(vars.zre, vars.zim, vars.pre, vars.pim, cfractalc.intcolor, 1));
-        return _INOUTPUT(vars, iter);
+        return GetInColor(vars, iter);
     } else {
         if (cfractalc.coloringmode == OutColormodeClass::ColOut_True_color)                                      \
             return (
                 truecolor_output(vars.zre, vars.zim, vars.pre, vars.pim, cfractalc.outtcolor, 0));
-        return _OUTOUTPUT(vars, iter);
+        return GetOutColor(vars, iter);
     }
 }
 
-auto static inline _SMOOTHOUTPUT(Vars &vars, unsigned int &iter) {
+auto static inline GetSmoothOutColor(Vars &vars, unsigned int &iter) {
     {
-        Presmoother::Presmooth(vars);
+        Formula::PreSmooth(vars);
         vars.zre += 0.000001;
         vars.szmag += 0.000001;
         iter = (int)(((cfractalc.maxiter - iter) * 256 +
@@ -654,61 +655,83 @@ static bool Formulax(VariableCollection &Vars)
 }
 };
 #endif
-
-template<class BaseVars, bool Smooth>
-class MandelFormula {
+template<class Super, class Variables>
+class EmptyFormulaImplementations {
 public:
-    template<bool HasSmooth>
-    class MyVars : public BaseVars {
-    public:
-        typedef  typename BaseVars::ValueType ValueType;
-        ValueType ip;
-        ValueType rp;
+    inline static void DoOneIterationStepUncompressed(Variables &vars) {Super::DoOneIterationStep(vars);}
+    inline static void EndUncompressedIteration(Variables &vars) {}
 
-        MyVars(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
-            : BaseVars(zre, zim, pre, pim) {}
 
-    };
-    template<>
-    class MyVars<true> : public MyVars<false> {
-    public:
-        typedef  typename BaseVars::ValueType ValueType;
-        MyVars<true>(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
-            : MyVars<false>(zre, zim, pre, pim) {}
+    inline static auto BailoutTest(Variables &vars) {}
 
-        inline void _SAVEZMAG() {this->szmag = this->rp + this->ip;}
+    inline static auto Pretest(Variables &vars) {return false;}
 
-    };
+    inline static void PresetVariables(Variables &vars) {}
+    inline static void PostIterationCalculations(Variables &vars, unsigned int &iter) {}
+    inline static void PreSmooth(Variables &vars) {}
+};
 
-    typedef MyVars<Smooth> Vars;
-    inline static void F(Vars &vars) {
+// Add our own variables to the common set
+template<class CommonVariables, bool HasSmooth>
+class MandelBrotVariables : public CommonVariables {
+public:
+    typedef  typename CommonVariables::ValueType ValueType;
+    ValueType ip;
+    ValueType rp;
+
+    MandelBrotVariables(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
+        : CommonVariables(zre, zim, pre, pim), ip(0), rp(0) {}
+
+};
+
+template<class BaseVars>
+class MandelBrotVariables<BaseVars, true> : public MandelBrotVariables<BaseVars, false> {
+public:
+    typedef  typename BaseVars::ValueType ValueType;
+    MandelBrotVariables<BaseVars, true>(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
+        : MandelBrotVariables<BaseVars, false>(zre, zim, pre, pim) {}
+
+    // Not sure if this better belongs to common...
+    inline void SaveMagnitudeOfZ() {this->szmag = this->rp + this->ip;}
+
+};
+
+// Probably no need to parametrize by basevars
+template<class BaseVars, bool Smooth>
+class MandelFormula : public EmptyFormulaImplementations<MandelFormula<BaseVars, Smooth>, MandelBrotVariables<BaseVars, Smooth>>{
+public:
+
+    typedef MandelBrotVariables<BaseVars, Smooth> Variables;
+
+    static constexpr bool DoCompress = false;
+
+    inline static void DoOneIterationStep(Variables &vars) {
         vars.zim = (vars.zim * vars.zre) * 2 + vars.pim;                                               \
         vars.zre = vars.rp - vars.ip + vars.pre;                                                       \
         vars.ip = vars.zim * vars.zim;                                                            \
         vars.rp = vars.zre * vars.zre;
 
     }
-    inline static void UF(Vars &vars) {F(vars);}
-    inline static void UEnd(Vars &vars) {}
 
-
-    inline static auto BTest(Vars &vars) {
+    inline static auto BailoutTest(Variables &vars) {
         return less_than_4(vars.rp + vars.ip);
     }
 
-    inline static auto Pretest(Vars &vars) {return false;}
-
-    inline static void Preset(Vars &vars) {
+    inline static void PresetVariables(Variables &vars) {
         vars.rp = vars.zre * vars.zre;
         vars.ip = vars.zim * vars.zim;
     }
-    inline static void _POSTCALC(Vars &vars) {}
 
+    inline static void PreSmooth(Variables &vars) {vars.zre = vars.rp + vars.ip;}
 };
 
 
 #include "docalc_templated.h"
-static unsigned int (*fp)(number_t, number_t, number_t, number_t) = calc<MandelFormula, false, false, InOut>;
+static unsigned int (*fp)(number_t, number_t, number_t, number_t) = calc<MandelFormula, false, Colorizer>;
+unsigned int (*GlobalMandelbrotForTimeTest)(number_t, number_t, number_t, number_t) = fp;
+static unsigned int (*fpms)(number_t, number_t, number_t, number_t) = calc<MandelFormula, true, Colorizer>;
+static unsigned int (*fpmp)(number_t, number_t, number_t, number_t) = peri<MandelFormula, false, Colorizer>;
+static unsigned int (*fpmps)(number_t, number_t, number_t, number_t) = peri<MandelFormula, true, Colorizer>;
 
 #define VARIABLES
 #define INIT
@@ -1577,10 +1600,10 @@ static const symmetrytype sym16[] = {{0, 1},        {0, -1},
 const struct formula formulas[] = {
     {                           /* 0 */
      FORMULAMAGIC,
-     fp, //mand_calc,
-     mand_peri,
-     smand_calc,
-     smand_peri,
+     fp, //mand_calc, //fp,
+     fpmp, //mand_peri,
+     fpms, //smand_calc,
+     fpmps, //smand_peri,
      mand_julia,
      {"Mandelbrot", "Julia"},
      "mandel",
@@ -2831,3 +2854,16 @@ const struct formula formulas[] = {
 const struct formula *currentformula;
 const int nformulas = sizeof(formulas) / sizeof(struct formula);
 const int nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
+/*
+Driver speed: 1161 FPS (2041.8877 MBPS)
+Memcpy speed: 48241.2 FPS (84843.3345 MBPS)
+Missaligned memcpy speed: 47517.2 FPS (83570.0127 MBPS)
+Size 6 memcpy speed: 1744.6 FPS (3068.2836 MBPS)
+Result:-16777216 Formulaname:Mandelbrot Time:118473 Mloops per sec:168.81
+Result:-16777216 Formulaname:Mandelbrot Time:135438 Mloops per sec:147.67
+New image caluclation took 0.025176 seconds (40 fps)
+Approximation loop speed: 7793.6 FPS
+Thank you for using XaoS
+
+12:24:19: /Users/ivooesch/Documents/osiprojekte/mandelbrot/XaoS/bin/XaoS.app/Contents/MacOS/XaoS exited with code 0
+*/

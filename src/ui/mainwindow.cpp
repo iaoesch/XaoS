@@ -24,6 +24,7 @@
 
 void MainWindow::printSpeed()
 {
+    bool FormulaTestOnly = true;
     int c = 0;
     int x, y = 0;
     int linesize = uih->image->bytesperpixel * uih->image->height;
@@ -34,6 +35,7 @@ void MainWindow::printSpeed()
     for (c = 0; c < 5; c++)
         widget->repaint();
     QCoreApplication::processEvents(QEventLoop::AllEvents);
+    if (FormulaTestOnly==false) {
     showStatus("Measuring display speed");
     tl_sleep(1000000);
     tl_update_time();
@@ -92,10 +94,27 @@ void MainWindow::printSpeed()
     }
     x_message("Size 6 memcpy speed: %g FPS (%.4f MBPS)", c / 5.0,
               c * (double)size / 5.0 / 1024 / 1024);
-
+    }
     widget->repaint();
     showStatus("Measuring calculation speed");
+    for (int i = 0; i < 10; i++) {
     speed_test(uih->fcontext, uih->image);
+
+    // Just for testing templatized things, remove later on
+    {
+        extern unsigned int (*GlobalMandelbrotForTimeTest)(number_t, number_t, number_t, number_t);
+    showStatus("Measuring calculation speed for template");
+        const struct formula* Saved = uih->fcontext->currentformula;
+        struct formula LocalCopy = *uih->fcontext->currentformula;
+        uih->fcontext->currentformula = &LocalCopy;
+        LocalCopy.calculate = GlobalMandelbrotForTimeTest;
+        LocalCopy.name[0] = "Templated Mandelbrot";
+        speed_test(uih->fcontext, uih->image);
+        uih->fcontext->currentformula = Saved;
+    }
+    }
+    if (FormulaTestOnly==false) {
+
     showStatus("Measuring new image calculation loop");
     uih_prepare_image(uih);
     tl_update_time();
@@ -116,6 +135,7 @@ void MainWindow::printSpeed()
     while (tl_lookup_timer(maintimer) < 5000000)
         uih_animate_image(uih), uih_prepare_image(uih), tl_update_time(), c++;
     x_message("Approximation loop speed: %g FPS", c / 5.0);
+    }
     ui_quit(0);
 }
 

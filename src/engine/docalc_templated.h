@@ -44,75 +44,40 @@
 #define RANGE 2
 #endif
 
-#if 0
-template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula>
-void NonSmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
-{
-   do { /*try first 8 iterations */
-       MyFormula<ValueType>::Formula(Vars);
-       iter--;
-   } while (MyTest<ValueType>::BTest(Vars) && iter);
-
-}
-
-template <class IterCountType, class ValueType, template <class T> class MyFormula, template <class U> class MyTest = MyFormula, , template <class U> class MySaver = MyFormula>
-void SmoothFormulaLoop(MyFormula::VariableCollection &Vars, IterCountType &iter)
-{
-   do { /*try first 8 iterations */
-       MySaver<ValueType>::SaveZMag(Vars);
-       MyFormula<ValueType>::Formula(Vars);
-       iter--;
-   } while (MyTest<ValueType>::BTest(Vars) && iter);
-
-}
-#endif
-
+// Iterates Z until end condition is reached, stores previous
+// Magnitude of Z for smooth color caltulation
+// Hint: DefaultSmoothLoop and DefaultLoop might be combined
+//       using constexpr-if(smooth)
 template<class Formula>
 class DefaultSmoothLoop {
 public:
-    inline static void L(unsigned int &iter, typename Formula::Vars &var)  {
+    inline static void IterateUntilEnd(unsigned int &iter, typename Formula::Variables &vars)  {
         do {
-            var.SAVEZMAG();
-            Formula::F(var);
+            vars.SaveMagnitudeOfZ();
+            Formula::DoOneIterationStep(vars);
             iter--;
-        } while (Formula::BTest(var) && iter) ;
+        } while (Formula::BailoutTest(vars) && iter) ;
     }
 };
 
+// Iterates Z until end condition is reached
 template<class Formula>
 class DefaultLoop {
 public:
-    inline static void L(unsigned int &iter, typename Formula::Vars &var)  {
+    inline static void IterateUntilEnd(unsigned int &iter, typename Formula::Variables &vars)  {
         do {
-            Formula::F(var);
+            Formula::DoOneIterationStep(vars);
             iter--;
-        } while (Formula::BTest(var) && iter) ;
+        } while (Formula::BailoutTest(vars) && iter) ;
     }
 };
 
-/* Prepare main loop */
-#ifndef NSFORMULALOOP
-#define NSFORMULALOOP(iter)                                                    \
-    do { /*try first 8 iterations */                                           \
-        FORMULA;                                                               \
-        iter--;                                                                \
-    } while (BTEST && iter)
-#endif
-#ifndef SFORMULALOOP
-#define SFORMULALOOP(iter)                                                     \
-    do { /*try first 8 iterations */                                           \
-        SAVEZMAG;                                                              \
-        FORMULA;                                                               \
-        iter--;                                                                \
-    } while (BTEST && iter)
-#endif
-#ifndef FORMULALOOP
 #ifdef SMOOTHMODE
 #define FORMULALOOP SFORMULALOOP
 #else
 #define FORMULALOOP NSFORMULALOOP
 #endif
-#endif
+
 
 #ifdef SMOOTHMODE
 #ifdef CUSTOMSAVEZMAG
@@ -124,14 +89,16 @@ public:
 #define SAVEZMAG
 #endif
 
+// Variables used in all Formulas, will be extended
+// for each formula with additional variables as required
 template<bool Smooth, class ValueType = number_t>
-class BaseVars {
+class CommonVariables {
 
 };
 
-
+// Common set for non-smoothing-case
 template<class ValueT>
-class BaseVars<false, ValueT> {
+class CommonVariables<false, ValueT> {
 public:
     typedef ValueT ValueType;
     ValueType &zre;
@@ -139,113 +106,144 @@ public:
     ValueType &pre;
     ValueType &pim;
 
-    BaseVars(ValueType &_zre, ValueType &_zim, ValueType &_pre, ValueType &_pim)
+    CommonVariables(ValueType &_zre, ValueType &_zim, ValueType &_pre, ValueType &_pim)
         : zre(_zre), zim(_zim), pre(_pre), pim(_pim) {}
     void Save() {}
     void Restore() {}
 
 };
 
+// Common set for smoothing-case
 template<class ValueType>
-class BaseVars<true, ValueType> : public BaseVars<false, ValueType> {
+class CommonVariables<true, ValueType> : public CommonVariables<false, ValueType> {
 public:
-    ValueType szmag;
+    // reuse baseclass constructor
+    using CommonVariables<false, ValueType>::CommonVariables;
+
+    ValueType szmag = 0;
 
 };
 
-template<template <class, bool> class FormulaT, bool Smooth, bool Compress, template<class, class> class IOT, class Looper = DefaultLoop<FormulaT<BaseVars<Smooth, number_t>, Smooth>>>
+template<template <class, bool> class FormulaT, bool Smooth, template<class> class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>>>
 static unsigned int calc(number_t zre, number_t zim, number_t pre,
                          number_t pim)
 {
-    typedef IOT<BaseVars<Smooth, number_t>, int> IO;
-    typedef FormulaT<BaseVars<Smooth, number_t>, Smooth> Formula;
+    // Some shortcuts for easier coding
+    typedef FormulaT<CommonVariables<Smooth, number_t>, Smooth> Formula;
+    typedef Colorizer<Formula> ColorConverter;
+
+    // Define our Variables
     unsigned int iter = cfractalc.maxiter;
-    typename Formula::Vars vars(zre, zim, pre, pim);
-    if constexpr (Compress) {
-        //VARIABLES;
-        //typename Formula::Vars vars(zre, zim, pre, pim);
-        INIT;
+    typename Formula::Variables vars(zre, zim, pre, pim);
+
+    // Select compressed or uncompressed variant
+    if constexpr (Formula::DoCompress) {
+        // Compressed
+
+        // Check if we can skip this Iteration
         if (Formula::Pretest(vars))
             iter = 0;
         else {
-            Formula::Preset(vars);
-            if (Formula::BTest(vars) && iter) {
-                Looper::L(iter, vars);
+            // Prepare Variables for iteration
+            Formula::PresetVariables(vars);
+
+            // Do the whole iteration
+            if (Formula::BailoutTest(vars) && iter) {
+                Looper::IterateUntilEnd(iter, vars);
             }
         }
     } else {
+        // Uncompressed
         number_t szre = 0, szim = 0;
-        SAVEVARIABLES;
-        //VARIABLES;
-        //typename Formula::Vars vars(zre, zim, pre, pim);
-        INIT;
+
+        // Check if we can skip this Iteration
         if (Formula::Pretest(vars))
             iter = 0;
         else {
-            Formula::Preset(vars);
+            // Prepare Variables for iteration
+            Formula::PresetVariables(vars);
             if (iter < 16) {
-
-                /*try first 8 iterations */
-                if (Formula::BTest(vars) && iter) {
-                    Looper::L(iter, vars);
+                // For small iterstion limit just iterate
+                if (Formula::BailoutTest(vars) && iter) {
+                    Looper::IterateUntilEnd(iter, vars);
                 }
 
             } else {
+
+                // Splitt  iterationslimit into a multiple of
+                // 8 and a left over
                 iter = 8 + (cfractalc.maxiter & 7);
 
-                /*try first 8 iterations */
-                if (Formula::BTest(vars) && iter) {
-                    Looper::L(iter, vars);
+                // iterate the left over part
+                if (Formula::BailoutTest(vars) && iter) {
+                    Looper::IterateUntilEnd(iter, vars);
                 }
 
-                if (Formula::BTest(vars)) {
+                // Now the left over iteraions are a multiple of 8
+                if (Formula::BailoutTest(vars)) {
+
+                    // Set iterate count to the left over multiple of 8
                     iter = (cfractalc.maxiter - 8) & (~7);
                     iter >>= 3;
+
                     /*do next 8 iteration w/o out of bounds checking */
                     do {
                         /*hmm..we are probably in some deep area. */
                         szre = vars.zre; /*save current position */
                         szim = vars.zim;
                         vars.Save();
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UF(vars);
-                        Formula::UEnd(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::DoOneIterationStepUncompressed(vars);
+                        Formula::EndUncompressedIteration(vars);
                         iter--;
-                    } while (Formula::BTest(vars) && iter);
-                    if (!(Formula::BTest(vars))) { /*we got out of bounds */
+                    } while (Formula::BailoutTest(vars) && iter);
+
+                    // Redo last 8 iterations if required
+                    if (!(Formula::BailoutTest(vars))) { /*we got out of bounds */
+
+                        // Set iterationcount to start of last 8 block
                         iter <<= 3;
-                        iter += 8; /*restore saved position */
+                        iter += 8;
+
+                        /*restore saved position */
                         vars.Restore();
                         vars.zre = szre;
                         vars.zim = szim;
-                        Formula::Preset(vars);
-                        Looper::L(iter, vars);
+
+                        // Prepare Variables for iteration
+                        Formula::PresetVariables(vars);
+
+                        // and do final iterations
+                        Looper::IterateUntilEnd(iter, vars);
 
                     }
                 } else
+                    // fix iterationcount to correct value
                     iter += cfractalc.maxiter - 8 - (cfractalc.maxiter & 7);
             }
         }
     }
     if constexpr (Smooth) {
 
+        // Use smooth color calcualation
         if (iter) {
-            return IO::_SMOOTHOUTPUT();
+            return ColorConverter::GetSmoothOutColor(vars, iter);
         }
-        Formula::_POSTCALC(vars);
+        Formula::PostIterationCalculations(vars, iter);
         iter = cfractalc.maxiter - iter;
-        return IO::_INOUTPUT(vars, iter);
+        return ColorConverter::GetInColor(vars, iter);
     } else {
 
-        Formula::_POSTCALC(vars);
+        // Use standard color calcualation
+        Formula::PostIterationCalculations(vars, iter);
         iter = cfractalc.maxiter - iter;
-        return IO::_OUTPUT(vars, iter);
+        return ColorConverter::GetColor(vars, iter);
     }
 }
 #if 0
@@ -449,6 +447,226 @@ static unsigned int CALC(number_t zre, number_t zim, number_t pre, number_t pim)
     (abs_less_than(r1 - zre, cfractalc.periodicity_limit) &&                   \
      abs_less_than(s1 - zim, cfractalc.periodicity_limit))
 
+#endif
+#endif
+
+#define PCHECK                                                                 \
+(abs_less_than(r1 - zre, cfractalc.periodicity_limit) &&                   \
+ abs_less_than(s1 - zim, cfractalc.periodicity_limit))
+
+
+template<template <class, bool> class FormulaT, bool Smooth, template<class
+                                                                     > class Colorizer, class Looper = DefaultLoop<FormulaT<CommonVariables<Smooth, number_t>, Smooth>>>
+static unsigned int peri(number_t zre, number_t zim, number_t pre, number_t pim)
+{
+    // Some shortcuts for easier coding
+    typedef FormulaT<CommonVariables<Smooth, number_t>, Smooth> Formula;
+    typedef Colorizer<Formula> ColorConverter;
+
+    // Define our Variables
+    unsigned int iter = cfractalc.maxiter /*& (~(int) 3) */;
+    number_t r1, s1;
+    int whensavenew, whenincsave;
+    typename Formula::Variables vars(zre, zim, pre, pim);
+
+    // Select compressed or uncompressed variant
+    if constexpr (Formula::DoCompress) {
+        unsigned int iter1 = 8;
+
+    //VARIABLES;
+    INIT;
+    // Check if we can skip this Iteration
+    if (Formula::Pretest(vars))
+        iter = 0;
+    else {
+        // Prepare Variables for iteration
+        Formula::PresetVariables(vars);
+
+        // Do the whole iteration
+        if (iter < iter1)
+            iter1 = iter; iter = 8;
+
+        /*H. : do first few iterations w/o checking */
+        // Do the whole iteration
+        if (Formula::BailoutTest(vars) && iter1) {
+            Looper::IterateUntilEnd(iter1, vars);
+        }
+
+        if (iter1) {
+            if (iter >= 8)
+                iter -= 8 - iter1;
+            goto end;
+        }
+        if (iter <= 8) {
+            iter = iter1;
+        } else {
+            iter -= 8;
+            r1 = vars.zre;
+            s1 = vars.zim;
+            whensavenew = 3; /*You should adapt these values */
+            /*F. : We should always define whensavenew as 2^N-1, so we could use
+             * a AND instead of % */
+
+            whenincsave = 10;
+            /*F. : problem is that after deep zooming, peiodicity is never
+               detected early, cause is is quite slow before going in a periodic
+               loop. So, we should start checking periodicity only after some
+               times */
+            while (Formula::BailoutTest(vars) && iter) {
+                SAVEZMAG;
+                Formula::DoOneIterationStep(vars);
+                if ((iter & whensavenew) == 0) { /*F. : changed % to & */
+                    r1 = vars.zre;
+                    s1 = vars.zim;
+                    whenincsave--;
+                    if (!whenincsave) {
+                        whensavenew =
+                            ((whensavenew + 1) << 1) -
+                            1; /*F. : Changed to define a new AND mask */
+                        whenincsave = 10;
+                    }
+                } else {
+                    if (PCHECK) {
+                        return ColorConverter::_PERIINOUTPUT();
+                    }
+                }
+                iter--;
+            }
+        }
+    }
+end:
+    if constexpr (Smooth) {
+        if (iter)
+            return ColorConverter::GetSmoothOutColor(vars, iter);
+        Formula::PostIterationCalculations(iter, vars);
+        iter = cfractalc.maxiter - iter;
+        return ColorConverter::GetInColor(vars, iter);
+    } else {
+        Formula::PostIterationCalculations(iter, vars);
+        iter = cfractalc.maxiter - iter;
+        return ColorConverter::GetColor(vars, iter);
+    }
+} else {
+
+    r1 = vars.zre; s1 = vars.zim;
+    number_t szre = 0, szim = 0; /*F. : Didn't declared register, cause they are few used */
+
+    SAVEVARIABLES
+    VARIABLES;
+    INIT;
+    if (Formula::Pretest(vars))
+        iter = 0;
+    else {
+        if (cfractalc.maxiter <= 16) {
+            // Prepare Variables for iteration
+            Formula::PresetVariables(vars);
+
+            /*F. : Added iter&7 to be sure we'll be on a 8 multiple */
+            if (Formula::BailoutTest(vars) && iter) {
+                Looper::IterateUntilEnd(iter, vars);
+            }
+
+        } else {
+            whensavenew = 7; /*You should adapt these values */
+            /*F. : We should always define whensavenew as 2^N-1, so we could use
+             * a AND instead of % */
+
+            whenincsave = 10;
+
+            // Prepare Variables for iteration
+            Formula::PresetVariables(vars);
+
+            /*F. : problem is that after deep zooming, peiodicity is never
+               detected early, cause is is quite slow before going in a periodic
+               loop. So, we should start checking periodicity only after some
+               times */
+            iter = 8 + (cfractalc.maxiter & 7);
+            while (Formula::BailoutTest(vars) && iter) { /*F. : Added iter&7 to be sure we'll be on a
+                                       8 multiple */
+                SAVEZMAG
+                    Formula::DoOneIterationStep(vars);
+                iter--;
+            }
+            if (Formula::BailoutTest(vars)) { /*F. : BTEST is calculed two times here, isn't it ? */
+                /*H. : No gcc is clever and adds test to the end :) */
+                iter = (cfractalc.maxiter - 8) & (~7);
+                do {
+                    szre = vars.zre; szim = vars.zim;
+                    SAVE;
+                    SAVEZMAG
+                        Formula::DoOneIterationStep(vars); /*F. : Calculate one time */
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    Formula::DoOneIterationStep(vars);
+                    if (PCHECK)
+                        goto periodicity;
+                    iter -= 8;
+                    /*F. : We only test this now, as it can't be true before */
+                    if ((iter & whensavenew) == 0) { /*F. : changed % to & */
+                        r1 = vars.zre, s1 = vars.zim;          /*F. : Save new values */
+                        whenincsave--;
+                        if (!whenincsave) {
+                            whensavenew =
+                                ((whensavenew + 1) << 1) -
+                                1; /*F. : Changed to define a new AND mask */
+                            whenincsave = 10; /*F. : Start back */
+                        }
+                    }
+                } while (Formula::BailoutTest(vars) && iter);
+                if (!Formula::BailoutTest(vars)) {  /*we got out of bounds */
+                    iter += 8; /*restore saved position */
+                    RESTORE;
+                    vars.zre = szre;
+                    vars.zim = szim;
+
+                    // Prepare Variables for iteration
+                    Formula::PresetVariables(vars);
+
+                    Looper::IterateUntilEnd(iter, vars);
+
+                }
+            } else
+                iter += cfractalc.maxiter - 8 - (cfractalc.maxiter & 7);
+        }
+    }
+
+}
+if constexpr (Smooth) {
+    if (iter)
+        return ColorConverter::GetSmoothOutColor(vars, iter);
+    Formula::PostIterationCalculations(vars, iter);
+    iter = cfractalc.maxiter - iter;
+    return ColorConverter::GetInColor(vars, iter);
+} else {
+    Formula::PostIterationCalculations(vars, iter);
+    iter = cfractalc.maxiter - iter;
+    return ColorConverter::GetColor(vars, iter);
+}
+periodicity:
+    ColorConverter::_PERIINOUTPUT();
+
+}
+
+#if 0
+#ifdef PERI
 #ifndef UNCOMPRESS
 
 #ifdef SMOOTHMODE
