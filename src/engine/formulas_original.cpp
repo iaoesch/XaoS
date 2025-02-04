@@ -31,7 +31,12 @@
  */
 
 // Some help can be read below about line 700. :-)
+
+#define USE_NONTEMPLATED_VERSION
+#define USE_TEMPLATE_AND_NONTEMPLATE_TOGETHER
 #ifdef USE_NONTEMPLATED_VERSION
+
+
 #include <climits>
 #include <cstring>
 #include <cstdlib>
@@ -54,7 +59,8 @@
 #include "sffe.h"
 #endif
 
-const char *const original_incolorname[] = {"0",
+#ifndef USE_TEMPLATE_AND_NONTEMPLATE_TOGETHER
+const char *const incolorname[] = {"0",
                                    "zmag",
                                    "Decomposition-like",
                                    "real/imag",
@@ -67,7 +73,7 @@ const char *const original_incolorname[] = {"0",
                                    "True-color",
                                    NULL};
 
-const char *const original_outcolorname[] = {"iter",
+const char *const outcolorname[] = {"iter",
                                     "iter+real",
                                     "iter+imag",
                                     "iter+real/imag",
@@ -80,7 +86,7 @@ const char *const original_outcolorname[] = {"iter",
                                     "True-color",
                                     NULL};
 
-const char *const original_tcolorname[] = {
+const char *const tcolorname[] = {
     "black",
     "re*im sin(re^2) angle",
     "sin(re) sin(im) sin(square)",
@@ -96,6 +102,7 @@ const char *const original_tcolorname[] = {
     "simple red (for education purposes)",
     "simple blue (for education purposes)",
     NULL};
+#endif
 
 #define SHIFT 8
 #define SMUL 256
@@ -1343,8 +1350,12 @@ static const symmetrytype sym16[] = {{0, 1},        {0, -1},
                                      {0, 0.414214}, {0, -0.414214},
                                      {0, 2.414214}, {0, -2.414214}};
 
+#ifdef USE_TEMPLATE_AND_NONTEMPLATE_TOGETHER
 const struct formula original_formulas[] = {
-    {                           /* 0 */
+#else
+const struct formula formulas[] = {
+#endif
+{                           /* 0 */
      FORMULAMAGIC,
      mand_calc,
      mand_peri,
@@ -2546,8 +2557,10 @@ const struct formula original_formulas[] = {
        }
 };
 
-const struct formula *original_currentformula;
-const int original_nformulas = sizeof(original_formulas) / sizeof(struct formula);
-const int original_nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
+#ifndef USE_TEMPLATE_AND_NONTEMPLATE_TOGETHER
 
+const struct formula *currentformula;
+const int nformulas = sizeof(original_formulas) / sizeof(struct formula);
+const int nmformulas = 16; // Is this correct here? -- Zoltan, 2009-07-30
+#endif
 #endif

@@ -627,34 +627,10 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
         return (interpoltype(cpalette, i2, i1, iter));
     }
 }
-#if 0
-template <class ValueType>
-class FormulaMandelbrot {
-public:
-typedef struct {
-   ValueType zre = x;
-   ValueType zim = y;
-   ValueType pre = 0;
-   ValueType pim = 0;
-   ValueType rp = 0;
-   ValueType ip = 0;
-   } VariableCollection;
 
-//void Formula(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim, ValueType &rp, ValueType &ip)
-static void Formula(VariableCollection &Vars)
-{
-   Vars.zim = (Vars.zim * Vars.zre) * static_cast<ValueType>(2) + Vars.pim;
-   Vars.zre = Vars.rp - Vars.ip + Vars.pre;
-   Vars.ip = Vars.zim * Vars.zim;
-   Vars.rp = Vars.zre * Vars.zre;
-}
+#include "docalc_templated.h"
 
-static bool Formulax(VariableCollection &Vars)
-{
-   return less_than_4(Vars.rp + Vars.ip);
-}
-};
-#endif
+
 template<class Super, class Variables>
 class EmptyFormulaImplementations {
 public:
@@ -666,42 +642,51 @@ public:
 
     inline static auto Pretest(Variables &vars) {return false;}
 
-    inline static void PresetVariables(Variables &vars) {}
+    // Was named RPIP in preprocessor variant, is splitt now in a formula dependent
+    // variableset a formula dependent PresetVariablesForFirstIterationStep() function
+    inline static void PresetVariablesForFirstIterationStep(Variables &vars) {}
+
     inline static void PostIterationCalculations(Variables &vars, unsigned int &iter) {}
-    inline static void PreSmooth(Variables &vars) {}
+    inline static void PreSmooth(Variables &vars) {vars.zre = vars.rp + vars.ip;}
+  //  inline static void PreSmooth(Variables &vars) {}
 };
 
-// Add our own variables to the common set
-template<class CommonVariables, bool HasSmooth>
+// Add additional variables for formula mandelbrot to the common variable set
+template<class CommonVariables, SmoothMode SmoothModeSelected>
 class MandelBrotVariables : public CommonVariables {
 public:
     typedef  typename CommonVariables::ValueType ValueType;
+
+    // additional variables
     ValueType ip;
     ValueType rp;
 
+    // In the original preprocessorbased formulas only rp was sometimes
+    // initialized to zero, here i always initialize rp and ip and
+    // expect the compiler/optimizer to remove unnescessary initializations...
     MandelBrotVariables(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
         : CommonVariables(zre, zim, pre, pim), ip(0), rp(0) {}
 
 };
 
 template<class BaseVars>
-class MandelBrotVariables<BaseVars, true> : public MandelBrotVariables<BaseVars, false> {
+class MandelBrotVariables<BaseVars, SmoothMode::SmoothEnabled> : public MandelBrotVariables<BaseVars, SmoothMode::SmoothDisabled> {
 public:
     typedef  typename BaseVars::ValueType ValueType;
-    MandelBrotVariables<BaseVars, true>(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
-        : MandelBrotVariables<BaseVars, false>(zre, zim, pre, pim) {}
+    MandelBrotVariables<BaseVars, SmoothMode::SmoothEnabled>(ValueType &zre, ValueType &zim, ValueType &pre, ValueType &pim)
+        : MandelBrotVariables<BaseVars, SmoothMode::SmoothDisabled>(zre, zim, pre, pim) {}
 
-    // Not sure if this better belongs to common...
+    // Not sure if this better belongs to common... -> No, rp and ip are not availlable there
     inline void SaveMagnitudeOfZ() {this->szmag = this->rp + this->ip;}
 
 };
 
 // Probably no need to parametrize by basevars
-template<class BaseVars, bool Smooth>
-class MandelFormula : public EmptyFormulaImplementations<MandelFormula<BaseVars, Smooth>, MandelBrotVariables<BaseVars, Smooth>>{
+template<class BaseVars, SmoothMode SmoothModeSelected>
+class MandelFormula : public EmptyFormulaImplementations<MandelFormula<BaseVars, SmoothModeSelected>, MandelBrotVariables<BaseVars, SmoothModeSelected>>{
 public:
 
-    typedef MandelBrotVariables<BaseVars, Smooth> Variables;
+    typedef MandelBrotVariables<BaseVars, SmoothModeSelected> Variables;
 
     static constexpr bool DoCompress = false;
 
@@ -717,21 +702,20 @@ public:
         return less_than_4(vars.rp + vars.ip);
     }
 
-    inline static void PresetVariables(Variables &vars) {
+    inline static void PresetVariablesForFirstIterationStep(Variables &vars) {
         vars.rp = vars.zre * vars.zre;
         vars.ip = vars.zim * vars.zim;
     }
 
-    inline static void PreSmooth(Variables &vars) {vars.zre = vars.rp + vars.ip;}
 };
 
 
-#include "docalc_templated.h"
-static unsigned int (*fp)(number_t, number_t, number_t, number_t) = calc<MandelFormula, false, Colorizer>;
+//#include "docalc_templated.h"
+static unsigned int (*fp)(number_t, number_t, number_t, number_t) = calc<MandelFormula, SmoothMode::SmoothDisabled, Colorizer>;
 unsigned int (*GlobalMandelbrotForTimeTest)(number_t, number_t, number_t, number_t) = fp;
-static unsigned int (*fpms)(number_t, number_t, number_t, number_t) = calc<MandelFormula, true, Colorizer>;
-static unsigned int (*fpmp)(number_t, number_t, number_t, number_t) = peri<MandelFormula, false, Colorizer>;
-static unsigned int (*fpmps)(number_t, number_t, number_t, number_t) = peri<MandelFormula, true, Colorizer>;
+static unsigned int (*fpms)(number_t, number_t, number_t, number_t) = calc<MandelFormula, SmoothMode::SmoothEnabled, Colorizer>;
+static unsigned int (*fpmp)(number_t, number_t, number_t, number_t) = peri<MandelFormula, SmoothMode::SmoothDisabled, Colorizer>;
+static unsigned int (*fpmps)(number_t, number_t, number_t, number_t) = peri<MandelFormula, SmoothMode::SmoothEnabled, Colorizer>;
 static void (*fpmj)(struct image *, number_t, number_t) = julia<MandelFormula, 2, Colorizer>;
 
 #define VARIABLES
@@ -780,6 +764,39 @@ static void (*fpmj)(struct image *, number_t, number_t) = julia<MandelFormula, 2
 #define RANGE 2
 #define RPIP
 #include "docalc.h"
+
+
+
+// Probably no need to parametrize by basevars
+template<class BaseVars, SmoothMode SmoothModeSelected>
+class Mandel3Formula : public EmptyFormulaImplementations<MandelFormula<BaseVars, SmoothModeSelected>, MandelBrotVariables<BaseVars, SmoothModeSelected>>{
+public:
+
+    typedef MandelBrotVariables<BaseVars, SmoothModeSelected> Variables;
+
+    static constexpr bool DoCompress = false;
+
+    inline static void DoOneIterationStep(Variables &vars) {
+        vars.rp = vars.zre * (vars.rp - 3 * vars.ip);                                                  \
+            vars.zim = vars.zim * (3 * vars.zre * vars.zre - vars.ip) + vars.pim;                                    \
+            vars.zre = vars.rp + vars.pre;                                                            \
+            vars.rp = vars.zre * vars.zre;                                                            \
+            vars.ip = vars.zim * vars.zim;
+
+    }
+
+    inline static auto BailoutTest(Variables &vars) {
+        return less_than_4(vars.rp + vars.ip);
+    }
+
+    inline static void PresetVariablesForFirstIterationStep(Variables &vars) {
+        vars.rp = vars.zre * vars.zre;
+        vars.ip = vars.zim * vars.zim;
+    }
+
+};
+
+
 
 #define PRETEST 0
 #define FORMULA                                                                \
