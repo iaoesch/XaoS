@@ -66,7 +66,6 @@ public:
         : zre(_zre), zim(_zim), pre(_pre), pim(_pim) {}
     void Save() {}
     void Restore() {}
-    void Init() {}
 
     inline void SaveMagnitudeOfZ() {}
 
@@ -95,7 +94,8 @@ static unsigned int calc(number_t zre, number_t zim, number_t pre,
     // Define our Variables
     unsigned int iter = cfractalc.maxiter;
     typename Formula::Variables vars(zre, zim, pre, pim);
-    Formula::Init(vars);
+    Formula::Init(vars); // cannot be part of costructor of variables, as also used inside code independet of construction (but could be called from constructor, but i think it would be confusing)
+
 
     // Select compressed or uncompressed variant
     if constexpr (Formula::DoCompress) {
@@ -256,7 +256,8 @@ static unsigned int peri(number_t zre, number_t zim, number_t pre, number_t pim)
     number_t r1, s1;
     int whensavenew, whenincsave;
     typename Formula::Variables vars(zre, zim, pre, pim);
-    Formula::Init(vars);
+    Formula::Init(vars); // cannot be part of costructor of variables, as also used inside code independet of construction (but could be called from constructor, but i think it would be confusing)
+
 
     // Select compressed or uncompressed variant
     if constexpr (Formula::DoCompress) {

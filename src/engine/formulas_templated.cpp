@@ -634,6 +634,8 @@ static unsigned int incolor_output(number_t zre, number_t zim, number_t pre,
 template<class Super, class Variables>
 class EmptyFormulaImplementations {
 public:
+    inline static void Init(Variables &vars) {} // cannot be part of costructor of variables, as also used inside code
+
     inline static void DoOneIterationStepUncompressed(Variables &vars) {Super::DoOneIterationStep(vars);}
     inline static void EndUncompressedIteration(Variables &vars) {}
 
